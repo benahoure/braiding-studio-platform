@@ -11,6 +11,7 @@ export default function Navbar() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 48)
+    onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
@@ -28,10 +29,10 @@ export default function Navbar() {
       <nav
         className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         style={{
-          background: scrolled ? 'rgba(251,247,242,0.96)' : 'transparent',
-          backdropFilter: scrolled ? 'blur(12px)' : 'none',
-          borderBottom: scrolled ? '1px solid var(--border)' : '1px solid transparent',
-          boxShadow: scrolled ? '0 2px 20px rgba(0,0,0,0.06)' : 'none',
+          background: 'rgba(251,247,242,0.97)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid var(--border)',
+          boxShadow: scrolled ? '0 2px 20px rgba(0,0,0,0.07)' : 'none',
         }}
       >
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -40,7 +41,7 @@ export default function Navbar() {
           <Link href="/" className="flex flex-col leading-none group">
             <span
               className="font-display text-2xl font-medium tracking-wide transition-colors"
-              style={{ color: scrolled ? 'var(--onyx)' : 'var(--cream)' }}
+              style={{ color: 'var(--onyx)' }}
             >
               Braids by Deb
             </span>
@@ -59,7 +60,7 @@ export default function Navbar() {
                 key={l.href}
                 href={l.href}
                 className="nav-link"
-                style={{ color: scrolled ? 'var(--onyx)' : 'rgba(251,247,242,0.88)' }}
+                style={{ color: 'var(--onyx)' }}
               >
                 {l.label}
               </Link>
@@ -75,7 +76,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
           >
-            <Menu size={22} color={scrolled ? 'var(--onyx)' : 'white'} />
+            <Menu size={22} color="var(--onyx)" />
           </button>
         </div>
       </nav>

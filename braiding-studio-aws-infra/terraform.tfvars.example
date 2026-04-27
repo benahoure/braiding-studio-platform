@@ -1,0 +1,10 @@
+project_name            = "braiding-studio-platform"
+stage                   = "dev"
+aws_region              = "us-east-1"
+domain_name             = "example.com"
+hosted_zone_domain      = "example.com"
+create_hosted_zone      = false
+notification_email_from = "noreply@example.com"
+notification_email_to   = "owner@example.com"
+enable_sms_reminders    = false
+reminder_schedule_expression = "rate(1 hour)"

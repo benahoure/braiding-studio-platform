@@ -342,6 +342,8 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
 
 /* ─── Mobile menu ─────────────────────────────────────── */
+.mobile-menu { display: none; }
+
 @media (max-width: 768px) {
   .mobile-menu {
     position: fixed;

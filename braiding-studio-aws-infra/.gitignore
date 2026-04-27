@@ -1,0 +1,12 @@
+cdk.out/
+dist/
+node_modules/
+*.tsbuildinfo
+.venv/
+__pycache__/
+*.pyc
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
