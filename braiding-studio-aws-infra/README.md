@@ -49,11 +49,17 @@ braiding-studio-aws-infra/
     dev.tfvars
     prod.tfvars
   src/
-    common.py
-    lambda_client_booking.py
-    lambda_client_contact.py
-    lambda_clients_reviews.py
-    lambda_client_reminders.py
+    shared/
+      __init__.py
+      common.py
+    client_booking/
+      handler.py
+    client_contact/
+      handler.py
+    clients_reviews/
+      handler.py
+    client_reminders/
+      handler.py
 ```
 
 ## Tooling

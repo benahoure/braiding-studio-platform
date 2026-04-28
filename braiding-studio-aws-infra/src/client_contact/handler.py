@@ -1,6 +1,6 @@
 import os
 
-from common import (
+from shared.common import (
     CONTACT_MESSAGES_TABLE,
     bad_request,
     clean_string,

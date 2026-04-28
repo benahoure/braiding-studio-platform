@@ -1,6 +1,6 @@
 import os
 
-from common import (
+from shared.common import (
     APPOINTMENTS_TABLE,
     DEPOSIT_AMOUNT,
     PAYMENT_METHODS,

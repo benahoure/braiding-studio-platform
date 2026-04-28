@@ -4,12 +4,22 @@ module "lambda_client_reminders" {
   version = "8.0.0"
   function_name = "${local.prefix}-client-reminders"
   description   = "Client reminder scheduler handler for braiding studio platform"
-  handler       = "lambda_client_reminders.handler"
+  handler       = "handler.handler"
   runtime       = "python3.12"
   timeout       = 60
   memory_size   = 256
-  source_path   = "${path.module}/src"
+  source_path = [
+    "${path.module}/src/client_reminders",
+    {
+      path          = "${path.module}/src/shared"
+      prefix_in_zip = "shared"
+    }
+  ]
   hash_extra    = "client-reminders"
+  # Keep trigger permissions on the unqualified function ARN for now.
+  # We are not publishing named Lambda versions/aliases yet.
+  create_current_version_allowed_triggers = false
+  create_unqualified_alias_allowed_triggers = true
 
   create_role = true
   role_name   = "${local.prefix}-client-reminders-role"

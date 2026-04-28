@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 
-from common import (
+from shared.common import (
     APPOINTMENTS_TABLE,
     TIMEZONE,
     appointment_datetime,

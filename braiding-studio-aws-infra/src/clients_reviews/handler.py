@@ -1,4 +1,4 @@
-from common import (
+from shared.common import (
     REVIEWS_TABLE,
     bad_request,
     clean_string,
