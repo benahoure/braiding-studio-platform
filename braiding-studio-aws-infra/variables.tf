@@ -1,13 +1,12 @@
 variable "project_name" {
   description = "Project prefix used for naming AWS resources."
   type        = string
-  default     = "braiding-studio-platform"
+  default     = "braiding-studio"
 }
 
-variable "stage" {
-  description = "Deployment stage such as dev or prod."
+variable "env_suffix" {
+  description = "Deployment environment such as dev or prod."
   type        = string
-  default     = "dev"
 }
 
 variable "aws_region" {

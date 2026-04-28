@@ -20,6 +20,15 @@ This module scaffolds the first production-oriented AWS foundation for the platf
 
 ```text
 braiding-studio-aws-infra/
+  backend.tf
+  backend/
+    dev.backend.hcl
+    main.tf
+    variables.tf
+    outputs.tf
+    prod.backend.hcl
+    terraform.tfvars
+    versions.tf
   locals.tf
   route53.tf
   acm.tf
@@ -36,7 +45,6 @@ braiding-studio-aws-infra/
   variables.tf
   outputs.tf
   versions.tf
-  terraform.tfvars.example
   env/
     dev.tfvars
     prod.tfvars
@@ -74,9 +82,23 @@ Important variables:
 
 ## Deploy flow
 
+### 1. Bootstrap the remote backend
+
+Create the S3 bucket and DynamoDB lock table first:
+
+```bash
+cd braiding-studio-aws-infra/backend
+terraform init
+terraform apply
+```
+
+If you want custom backend resource names, edit `backend/terraform.tfvars` before applying the backend stack.
+
+### 2. Initialize the main stack against the remote backend
+
 ```bash
 cd braiding-studio-aws-infra
-terraform init
+terraform init -backend-config=backend/dev.backend.hcl -reconfigure
 terraform plan -var-file=env/dev.tfvars
 terraform apply -var-file=env/dev.tfvars
 ```
@@ -88,6 +110,20 @@ cd braiding-studio-aws-infra
 tofu init
 tofu plan -var-file=env/dev.tfvars
 tofu apply -var-file=env/dev.tfvars
+```
+
+If you already created any local state for the main stack and want to move it into S3, use:
+
+```bash
+terraform init -backend-config=backend/dev.backend.hcl -migrate-state
+```
+
+For production, use the prod backend file and prod tfvars:
+
+```bash
+terraform init -backend-config=backend/prod.backend.hcl -reconfigure
+terraform plan -var-file=env/prod.tfvars
+terraform apply -var-file=env/prod.tfvars
 ```
 
 ## Current status
@@ -114,9 +150,32 @@ What still needs implementation:
 - CI/CD deployment for the static web app bundle into the S3 origin
 - full AWS End User Messaging setup for SMS delivery
 
+## Networking strategy
+
+This stack intentionally does not create a VPC right now.
+
+Current networking decision:
+
+- `API Gateway` stays public
+- `Lambda` functions run outside a VPC
+- no `NAT Gateway`, private subnets, public subnets, security groups, or VPC endpoints are created
+
+Why this is the current recommendation:
+
+- the current stack only uses managed AWS services that do not require Lambda VPC attachment
+- avoiding a VPC keeps cost lower and the architecture easier to debug
+- interface endpoints for a public API Gateway would add cost rather than reduce it
+
+Add a VPC later only if the platform introduces private network dependencies such as:
+
+- `RDS` or `Aurora`
+- `ElastiCache` or Redis
+- private internal services that should not be reachable over public AWS service endpoints
+
 ## Notes
 
 - The stack defaults to `us-east-1`, which keeps CloudFront certificate handling straightforward.
+- The remote backend uses a separate backend stack so the main infrastructure never has to create its own state bucket or lock table.
 - The placeholder `index.html` object exists only so CloudFront has valid content before CI/CD is wired up.
 - If you use a subdomain like `book.example.com`, set `domain_name=book.example.com` and `hosted_zone_domain=example.com`.
 - SES sender verification still has to be completed in AWS before application emails will work.

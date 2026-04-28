@@ -1,7 +1,7 @@
+# Reviews logic stays outside a VPC until the platform adds a real private dependency. This keeps costs down by avoiding NAT and endpoint charges.
 module "lambda_clients_reviews" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "8.0.0"
-
   function_name = "${local.prefix}-clients-reviews"
   description   = "Client reviews API handler for braiding studio platform"
   handler       = "lambda_clients_reviews.handler"

@@ -1,7 +1,8 @@
+ # This function intentionally runs outside a VPC because it only needs DynamoDB, SES,
+ # and API Gateway integration. Keeping it out of a VPC avoids unnecessary NAT and endpoint cost.
 module "lambda_client_booking" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "8.0.0"
-
   function_name = "${local.prefix}-client-booking"
   description   = "Client booking API handler for braiding studio platform"
   handler       = "lambda_client_booking.handler"

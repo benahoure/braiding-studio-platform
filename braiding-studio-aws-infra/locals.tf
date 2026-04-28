@@ -1,5 +1,5 @@
 locals {
-  prefix       = "${var.project_name}-${var.stage}"
+  prefix       = "${var.project_name}-${var.env_suffix}"
   include_www  = var.domain_name == var.hosted_zone_domain
   site_domains = local.include_www ? [var.domain_name, "www.${var.domain_name}"] : [var.domain_name]
 

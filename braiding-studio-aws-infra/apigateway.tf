@@ -1,6 +1,8 @@
 resource "aws_apigatewayv2_api" "platform" {
   name          = "${local.prefix}-api"
   protocol_type = "HTTP"
+  # Keep this API public for now. A private API would require VPC endpoints / PrivateLink,
+  # which would add cost and complexity without helping the current architecture.
 
   cors_configuration {
     allow_headers = ["content-type", "authorization"]

@@ -1,7 +1,9 @@
+  # This function intentionally runs outside a VPC because the current workload does not
+  # depend on private network resources.
+
 module "lambda_client_contact" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "8.0.0"
-
   function_name = "${local.prefix}-client-contact"
   description   = "Client contact API handler for braiding studio platform"
   handler       = "lambda_client_contact.handler"

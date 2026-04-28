@@ -1,7 +1,7 @@
+# Processing stays outside a VPC for the same reason: no private network dependency yet.
 module "lambda_client_reminders" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "8.0.0"
-
   function_name = "${local.prefix}-client-reminders"
   description   = "Client reminder scheduler handler for braiding studio platform"
   handler       = "lambda_client_reminders.handler"
