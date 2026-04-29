@@ -3,6 +3,11 @@ output "cloudfront_distribution_domain_name" {
   description = "CloudFront domain name for the static site."
 }
 
+output "cloudfront_distribution_id" {
+  value       = aws_cloudfront_distribution.site.id
+  description = "CloudFront distribution ID for cache invalidations."
+}
+
 output "site_bucket_name" {
   value       = aws_s3_bucket.site.bucket
   description = "S3 bucket that stores static web assets."

@@ -4,3 +4,5 @@
 node_modules/
 *.log
 builds/
+braiding-studio-webapp/_image-assets/
+braiding-studio-webapp/out/
