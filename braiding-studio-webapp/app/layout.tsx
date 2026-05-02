@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: 'Braids by Deb | Dallas, TX',
   description: 'Premier natural hair braiding in Dallas. Box braids, knotless braids, cornrows, Senegalese twists, locs, and more. Protective styles that celebrate your crown. Book online.',
   keywords: 'braids Dallas, box braids Dallas, knotless braids, cornrows, Senegalese twists, locs Dallas, natural hair braiding, protective styles Dallas, Black hair salon Dallas',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 }
 
 export default function RootLayout({
