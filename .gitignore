@@ -6,3 +6,4 @@ node_modules/
 builds/
 braiding-studio-webapp/_image-assets/
 braiding-studio-webapp/out/
+terraform-state-backup-live.json
