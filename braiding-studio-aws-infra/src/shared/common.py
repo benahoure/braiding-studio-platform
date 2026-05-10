@@ -5,6 +5,7 @@ import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from html import escape
 from zoneinfo import ZoneInfo
 
 import boto3
@@ -19,26 +20,209 @@ DEPOSIT_AMOUNT = Decimal("50")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 SERVICES = {
-    "bb-small": {"name": "Small Box Braids", "category": "Box Braids", "price": 220, "duration": 360},
-    "bb-medium": {"name": "Medium Box Braids", "category": "Box Braids", "price": 180, "duration": 300},
-    "bb-large": {"name": "Large Box Braids", "category": "Box Braids", "price": 140, "duration": 180},
-    "kl-small": {"name": "Small Knotless Braids", "category": "Knotless Braids", "price": 260, "duration": 420},
-    "kl-medium": {"name": "Medium Knotless Braids", "category": "Knotless Braids", "price": 210, "duration": 360},
-    "kl-large": {"name": "Large Knotless Braids", "category": "Knotless Braids", "price": 170, "duration": 240},
-    "cr-straight": {"name": "Straight Back Cornrows", "category": "Cornrows", "price": 80, "duration": 120},
-    "cr-goddess": {"name": "Goddess Cornrows", "category": "Cornrows", "price": 150, "duration": 240},
-    "boho-small": {"name": "Small Boho Braids", "category": "Boho Braids", "price": 230, "duration": 360},
-    "boho-medium": {"name": "Medium Boho Braids", "category": "Boho Braids", "price": 195, "duration": 300},
-    "boho-twist": {"name": "Medium Twist Boho Braids", "category": "Boho Braids", "price": 215, "duration": 330},
-    "fulani-classic": {"name": "Fulani Braids", "category": "Fulani Braids", "price": 130, "duration": 150},
-    "fulani-style": {"name": "Fulani Hairstyle", "category": "Fulani Braids", "price": 150, "duration": 180},
-    "kids-cornrows": {"name": "Kids Cornrows", "category": "Kids Braids", "price": 60, "duration": 90},
-    "kids-box": {"name": "Kids Box Braids", "category": "Kids Braids", "price": 100, "duration": 150},
-    "kids-ponytails": {"name": "Kids Braided Ponytails", "category": "Kids Braids", "price": 50, "duration": 60},
-    "other-passion": {"name": "Passion Twists", "category": "Other", "price": 175, "duration": 270},
+    "bb-small": {
+        "name": "Small Box Braids",
+        "category": "Box Braids",
+        "duration": 360,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 200},
+            "waist-length": {"label": "Waist Length", "price": 300},
+            "butt-length": {"label": "Butt Length", "price": 340},
+        },
+    },
+    "bb-medium": {
+        "name": "Medium Box Braids",
+        "category": "Box Braids",
+        "duration": 300,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 180},
+            "waist-length": {"label": "Waist Length", "price": 240},
+            "butt-length": {"label": "Butt Length", "price": 280},
+        },
+    },
+    "bb-large": {
+        "name": "Large Box Braids",
+        "category": "Box Braids",
+        "duration": 180,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 160},
+            "waist-length": {"label": "Waist Length", "price": 200},
+            "butt-length": {"label": "Butt Length", "price": 240},
+        },
+    },
+    "kl-small": {
+        "name": "Small Knotless Braids",
+        "category": "Knotless Braids",
+        "duration": 420,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 200},
+            "waist-length": {"label": "Waist Length", "price": 300},
+            "butt-length": {"label": "Butt Length", "price": 340},
+        },
+    },
+    "kl-medium": {
+        "name": "Medium Knotless Braids",
+        "category": "Knotless Braids",
+        "duration": 360,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 180},
+            "waist-length": {"label": "Waist Length", "price": 240},
+            "butt-length": {"label": "Butt Length", "price": 280},
+        },
+    },
+    "kl-large": {
+        "name": "Large Knotless Braids",
+        "category": "Knotless Braids",
+        "duration": 240,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 160},
+            "waist-length": {"label": "Waist Length", "price": 200},
+            "butt-length": {"label": "Butt Length", "price": 240},
+        },
+    },
+    "boho-small": {
+        "name": "Small Boho Braids",
+        "category": "Boho Braids",
+        "duration": 360,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 280},
+            "waist-length": {"label": "Waist Length", "price": 320},
+            "butt-length": {"label": "Butt Length", "price": 360},
+        },
+    },
+    "boho-medium": {
+        "name": "Medium Boho Braids",
+        "category": "Boho Braids",
+        "duration": 300,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 240},
+            "waist-length": {"label": "Waist Length", "price": 280},
+            "butt-length": {"label": "Butt Length", "price": 320},
+        },
+    },
+    "boho-large": {
+        "name": "Large Boho Braids",
+        "category": "Boho Braids",
+        "duration": 240,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 200},
+            "waist-length": {"label": "Waist Length", "price": 240},
+            "butt-length": {"label": "Butt Length", "price": 280},
+        },
+    },
+    "twist-small": {
+        "name": "Small Twist Braids",
+        "category": "Twist Braids",
+        "duration": 330,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 260},
+            "waist-length": {"label": "Waist Length", "price": 300},
+            "butt-length": {"label": "Butt Length", "price": 340},
+        },
+    },
+    "twist-medium": {
+        "name": "Medium Twist Braids",
+        "category": "Twist Braids",
+        "duration": 270,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 220},
+            "waist-length": {"label": "Waist Length", "price": 240},
+            "butt-length": {"label": "Butt Length", "price": 280},
+        },
+    },
+    "twist-large": {
+        "name": "Large Twist Braids",
+        "category": "Twist Braids",
+        "duration": 210,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 200},
+            "waist-length": {"label": "Waist Length", "price": 220},
+            "butt-length": {"label": "Butt Length", "price": 260},
+        },
+    },
+    "cornrows": {
+        "name": "Cornrows",
+        "category": "Cornrows",
+        "duration": 180,
+        "price": 180,
+        "isStartingPrice": True,
+    },
+    "fulani-small": {
+        "name": "Small Fulani Braids",
+        "category": "Fulani Braids",
+        "duration": 180,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 200},
+            "waist-length": {"label": "Waist Length", "price": 300},
+            "butt-length": {"label": "Butt Length", "price": 340},
+        },
+    },
+    "fulani-medium": {
+        "name": "Medium Fulani Braids",
+        "category": "Fulani Braids",
+        "duration": 150,
+        "lengthOptions": {
+            "mid-back": {"label": "Mid Back", "price": 180},
+            "waist-length": {"label": "Waist Length", "price": 240},
+            "butt-length": {"label": "Butt Length", "price": 280},
+        },
+    },
+    "fulani-hairstyle": {
+        "name": "Fulani Hairstyle",
+        "category": "Fulani Braids",
+        "duration": 180,
+        "price": 150,
+    },
+    "kids-cornrows": {
+        "name": "Kids Cornrows",
+        "category": "Kids Braids",
+        "duration": 90,
+        "lengthOptions": {
+            "mid": {"label": "Mid", "price": 120},
+        },
+    },
+    "kids-box": {
+        "name": "Kids Box Braids",
+        "category": "Kids Braids",
+        "duration": 150,
+        "lengthOptions": {
+            "mid": {"label": "Mid", "price": 160},
+        },
+    },
+    "kids-knotless": {
+        "name": "Kids Knotless",
+        "category": "Kids Braids",
+        "duration": 150,
+        "lengthOptions": {
+            "mid": {"label": "Mid", "price": 160},
+        },
+    },
+    "kids-other": {
+        "name": "Kids Other Styles",
+        "category": "Kids Braids",
+        "duration": 120,
+        "lengthOptions": {
+            "mid": {"label": "Mid", "price": 120},
+        },
+        "isStartingPrice": True,
+    },
 }
 
 PAYMENT_METHODS = {"card", "zelle", "cashapp"}
+PAYMENT_METHOD_DETAILS = {
+    "card": {
+        "label": "Bank Card",
+        "instruction": "We will send you a secure payment link by text message after booking.",
+    },
+    "zelle": {
+        "label": "Zelle",
+        "instruction": 'Send the $50 deposit to (214) 555-0192 and use "Deposit" as the memo.',
+    },
+    "cashapp": {
+        "label": "CashApp",
+        "instruction": 'Send the $50 deposit to $BraidsByDeb and use "Deposit" as the memo.',
+    },
+}
 
 dynamodb = boto3.resource("dynamodb")
 ses = boto3.client("ses")
@@ -122,6 +306,26 @@ def get_service(service_id):
     return SERVICES.get(service_id)
 
 
+def get_service_length_option(service, length_id=None):
+    length_options = service.get("lengthOptions") or {}
+    if not length_options:
+        return None
+    if length_id and length_id in length_options:
+        option = length_options[length_id]
+        return {"id": length_id, **option}
+    if len(length_options) == 1:
+        length_key, option = next(iter(length_options.items()))
+        return {"id": length_key, **option}
+    return None
+
+
+def get_service_price(service, length_id=None):
+    option = get_service_length_option(service, length_id)
+    if option:
+        return option["price"]
+    return service.get("price")
+
+
 def appointment_response(item):
     if not item:
         return None
@@ -189,24 +393,27 @@ def upsert_client(full_name, email, phone, latest_booking_id=None):
     return item
 
 
-def send_email(subject, text_body, recipient, reply_to=None):
+def send_email(subject, text_body, recipient, reply_to=None, html_body=None):
     sender = os.environ["NOTIFICATION_EMAIL_FROM"]
     if not recipient:
         return
     try:
+        body = {"Text": {"Data": text_body, "Charset": "UTF-8"}}
+        if html_body:
+            body["Html"] = {"Data": html_body, "Charset": "UTF-8"}
         kwargs = {
             "Source": sender,
             "Destination": {"ToAddresses": [recipient]},
             "Message": {
-                "Subject": {"Data": subject},
-                "Body": {"Text": {"Data": text_body}},
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": body,
             },
         }
         if reply_to:
             kwargs["ReplyToAddresses"] = [reply_to]
         ses.send_email(**kwargs)
     except Exception as exc:  # pragma: no cover - runtime safety
-        LOGGER.exception("Failed to send SES email: %s", exc)
+        LOGGER.exception("Failed to send SES email to %s with subject %s: %s", recipient, subject, exc)
 
 
 def send_sms(phone_number, message):
@@ -255,11 +462,17 @@ def is_slot_booked(date_value, time_value, exclude_appointment_id=None):
     return False
 
 
-def list_appointments(email=None, status=None):
+def list_appointments(email=None, status=None, date_value=None):
     if email:
         items = APPOINTMENTS_TABLE.query(
             IndexName="byClientEmail",
             KeyConditionExpression=Key("clientEmail").eq(email.lower()),
+            ScanIndexForward=False,
+        ).get("Items", [])
+    elif date_value:
+        items = APPOINTMENTS_TABLE.query(
+            IndexName="byAppointmentDate",
+            KeyConditionExpression=Key("appointmentDate").eq(date_value),
             ScanIndexForward=False,
         ).get("Items", [])
     else:
@@ -304,8 +517,139 @@ def summarize_appointment(item):
         f"Booking {item.get('appointmentId')}\n"
         f"Client: {item.get('clientName')} ({item.get('clientEmail')})\n"
         f"Service: {item.get('serviceName')}\n"
+        f"Length: {item.get('serviceLength') or 'N/A'}\n"
         f"When: {item.get('appointmentDate')} at {item.get('appointmentTime')}\n"
         f"Status: {item.get('status')}\n"
         f"Payment method: {item.get('paymentMethod')}\n"
         f"Notes: {item.get('notes') or 'None'}"
     )
+
+
+def format_appointment_datetime(date_value, time_value):
+    try:
+        dt = appointment_datetime(date_value, time_value)
+        return dt.strftime("%A, %B %d, %Y at %I:%M %p")
+    except Exception:  # pragma: no cover - display fallback
+        return f"{date_value} at {time_value}"
+
+
+def payment_method_details(payment_method):
+    return PAYMENT_METHOD_DETAILS.get(payment_method, {"label": payment_method or "Payment", "instruction": ""})
+
+
+def render_booking_email(subject, headline, intro, item, detail_rows, accent_label=None, accent_value=None):
+    escaped_subject = escape(subject)
+    escaped_headline = escape(headline)
+    escaped_intro = escape(intro)
+
+    details_html = "".join(
+        f"""
+        <tr>
+          <td style="padding:0 0 10px 0; color:#6f6f73; font-size:13px; letter-spacing:0.04em; text-transform:uppercase;">{escape(label)}</td>
+          <td style="padding:0 0 10px 24px; color:#111111; font-size:15px; font-weight:500; text-align:right;">{escape(value)}</td>
+        </tr>
+        """
+        for label, value in detail_rows
+        if value
+    )
+
+    accent_html = ""
+    if accent_label and accent_value:
+        accent_html = f"""
+        <div style="margin-top:24px; padding:16px 18px; border-radius:18px; background:#f6f6f7;">
+          <div style="font-size:12px; color:#6f6f73; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:6px;">{escape(accent_label)}</div>
+          <div style="font-size:14px; line-height:1.6; color:#111111;">{escape(accent_value)}</div>
+        </div>
+        """
+
+    return f"""<!doctype html>
+<html>
+  <body style="margin:0; padding:0; background:#f5f5f7; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#111111;">
+    <div style="padding:32px 16px;">
+      <div style="max-width:620px; margin:0 auto; background:#ffffff; border-radius:28px; overflow:hidden; box-shadow:0 18px 60px rgba(17,17,17,0.08);">
+        <div style="padding:28px 32px; background:linear-gradient(180deg, #f9f7f4 0%, #ffffff 100%); border-bottom:1px solid #ece8e1;">
+          <div style="font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#b48a2c; margin-bottom:14px;">Braids by Deb</div>
+          <div style="font-size:31px; line-height:1.18; font-weight:500; color:#111111; margin:0 0 12px 0;">{escaped_headline}</div>
+          <div style="font-size:15px; line-height:1.7; color:#4f4f52;">{escaped_intro}</div>
+        </div>
+        <div style="padding:28px 32px 32px;">
+          <div style="padding:22px 24px; border:1px solid #ece8e1; border-radius:22px; background:#fcfbf9;">
+            <div style="font-size:12px; color:#8d7a54; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:16px;">Appointment details</div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              {details_html}
+            </table>
+          </div>
+          {accent_html}
+          <div style="margin-top:28px; font-size:12px; line-height:1.7; color:#8a8a8f;">
+            Booking reference: {escape(item.get('appointmentId', ''))}<br>
+            This confirmation was sent to {escape(item.get('clientEmail', ''))}.
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>"""
+
+
+def booking_client_email_content(item):
+    when_label = format_appointment_datetime(item.get("appointmentDate"), item.get("appointmentTime"))
+    payment = payment_method_details(item.get("paymentMethod"))
+
+    detail_rows = [
+        ("Service", item.get("serviceName", "")),
+        ("Length", item.get("serviceLength") or "N/A"),
+        ("When", when_label),
+        ("Price", f"${item.get('servicePrice')}"),
+        ("Deposit", f"${int(DEPOSIT_AMOUNT)}"),
+        ("Payment method", payment["label"]),
+        ("Client", item.get("clientName", "")),
+    ]
+    if item.get("notes"):
+        detail_rows.append(("Notes", item["notes"]))
+
+    text_body = (
+        "Your appointment is confirmed.\n\n"
+        f"{summarize_appointment(item)}\n\n"
+        f"Deposit instruction: {payment['instruction']}"
+    )
+    html_body = render_booking_email(
+        subject=f"Your appointment is confirmed - {item.get('serviceName', '')}",
+        headline="Your appointment is confirmed.",
+        intro="We have reserved your time and your booking details are below.",
+        item=item,
+        detail_rows=detail_rows,
+        accent_label="Next step",
+        accent_value=payment["instruction"],
+    )
+    return text_body, html_body
+
+
+def booking_owner_email_content(item):
+    when_label = format_appointment_datetime(item.get("appointmentDate"), item.get("appointmentTime"))
+    payment = payment_method_details(item.get("paymentMethod"))
+
+    detail_rows = [
+        ("Client", item.get("clientName", "")),
+        ("Email", item.get("clientEmail", "")),
+        ("Phone", item.get("clientPhone", "")),
+        ("Service", item.get("serviceName", "")),
+        ("Length", item.get("serviceLength") or "N/A"),
+        ("When", when_label),
+        ("Price", f"${item.get('servicePrice')}"),
+        ("Payment method", payment["label"]),
+        ("Status", item.get("status", "")),
+    ]
+    if item.get("notes"):
+        detail_rows.append(("Notes", item["notes"]))
+
+    text_body = f"A new appointment was booked.\n\n{summarize_appointment(item)}"
+    html_body = render_booking_email(
+        subject=f"New booking - {item.get('serviceName', '')}",
+        headline="A new appointment was booked.",
+        intro="A client just completed a booking on the website. The details are below.",
+        item=item,
+        detail_rows=detail_rows,
+        accent_label="Reply-to",
+        accent_value=f"Reply to this email to respond to {item.get('clientName', '')}.",
+    )
+    return text_body, html_body

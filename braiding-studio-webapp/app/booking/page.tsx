@@ -1,19 +1,30 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   SERVICES, SERVICE_CATEGORIES, TIME_SLOTS, formatDuration,
-  getServiceById, getBookedSlots, saveAppointment, generateId,
+  formatServicePriceLabel,
+  getServiceById,
+  getServiceDefaultLengthOption,
+  getServiceLengthOption,
+  getServicePrice,
+  getServiceStartingPrice,
   DEPOSIT_AMOUNT, PAYMENT_METHODS, PaymentMethodId,
+  serviceRequiresLengthSelection,
 } from '@/lib/data'
+import { createAppointment, fetchBookedSlots } from '@/lib/api'
+import { formatPhoneNumber } from '@/lib/phone'
 import { Appointment, BookingFormData, ServiceCategory } from '@/types'
-import { format, addDays, isBefore, startOfToday } from 'date-fns'
+import { format } from 'date-fns'
 import { ChevronRight, ChevronLeft, Clock, DollarSign, CheckCircle, Calendar, User, Phone, Mail, CreditCard, AlertCircle } from 'lucide-react'
 import DatePicker from '@/components/DatePicker'
 
 type Step = 1 | 2 | 3 | 4 | 5
+
+const STICKY_NAV_OFFSET = 120
+const AUTO_ADVANCE_DELAY_MS = 220
 
 function BookingContent() {
   const searchParams = useSearchParams()
@@ -24,13 +35,19 @@ function BookingContent() {
   const [bookedSlots, setBookedSlots] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [confirmed, setConfirmed] = useState<Appointment | null>(null)
+  const [availabilityError, setAvailabilityError] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId | ''>('')
   const [depositAgreed, setDepositAgreed] = useState(false)
   const [paymentError, setPaymentError] = useState('')
+  const bookingCardRef = useRef<HTMLDivElement | null>(null)
+  const serviceCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const autoAdvanceTimeoutRef = useRef<number | null>(null)
 
   const [form, setForm] = useState<BookingFormData>({
     serviceId: preselectedService || '',
+    serviceLengthId: '',
     clientName: '',
     clientEmail: '',
     clientPhone: '',
@@ -42,29 +59,173 @@ function BookingContent() {
   const [errors, setErrors] = useState<Partial<Record<keyof BookingFormData, string>>>({})
 
   const selectedService = form.serviceId ? getServiceById(form.serviceId) : null
+  const selectedLengthOption = selectedService
+    ? getServiceLengthOption(selectedService, form.serviceLengthId)
+    : undefined
+  const selectedServicePrice = selectedService
+    ? getServicePrice(selectedService, form.serviceLengthId)
+    : 0
 
   useEffect(() => {
-    if (form.date) {
-      const dateStr = format(form.date, 'yyyy-MM-dd')
-      setBookedSlots(getBookedSlots(dateStr))
-    }
-  }, [form.date])
+    if (!preselectedService) return
 
-  useEffect(() => {
-    if (preselectedService && getServiceById(preselectedService)) {
-      setStep(2)
+    const preselected = getServiceById(preselectedService)
+    if (preselected) {
+      setCategoryFilter(preselected.category)
     }
   }, [preselectedService])
+
+  useEffect(() => {
+    if (!selectedService) {
+      if (form.serviceLengthId) {
+        setForm(current => ({ ...current, serviceLengthId: '' }))
+      }
+      return
+    }
+
+    const defaultLength = getServiceDefaultLengthOption(selectedService)
+    if (defaultLength && form.serviceLengthId !== defaultLength.id) {
+      setForm(current => ({ ...current, serviceLengthId: defaultLength.id }))
+      return
+    }
+
+    if (!selectedService.lengthOptions && form.serviceLengthId) {
+      setForm(current => ({ ...current, serviceLengthId: '' }))
+      return
+    }
+
+    if (form.serviceLengthId && !getServiceLengthOption(selectedService, form.serviceLengthId)) {
+      setForm(current => ({ ...current, serviceLengthId: '' }))
+    }
+  }, [selectedService, form.serviceLengthId])
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimeoutRef.current) {
+        window.clearTimeout(autoAdvanceTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadBookedSlots = async () => {
+      if (!form.date) {
+        setBookedSlots([])
+        setAvailabilityError('')
+        return
+      }
+
+      const dateStr = format(form.date, 'yyyy-MM-dd')
+
+      try {
+        const slots = await fetchBookedSlots(dateStr)
+        if (!cancelled) {
+          setBookedSlots(slots)
+          setAvailabilityError('')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBookedSlots([])
+          setAvailabilityError(error instanceof Error ? error.message : 'Unable to load appointment availability right now.')
+        }
+      }
+    }
+
+    loadBookedSlots()
+
+    return () => {
+      cancelled = true
+    }
+  }, [form.date])
 
   const filteredServices = SERVICES.filter(s =>
     categoryFilter === 'All' || s.category === categoryFilter
   )
+
+  const clearScheduledAdvance = () => {
+    if (autoAdvanceTimeoutRef.current) {
+      window.clearTimeout(autoAdvanceTimeoutRef.current)
+      autoAdvanceTimeoutRef.current = null
+    }
+  }
+
+  const scrollToY = (top: number) => {
+    window.scrollTo({
+      top: Math.max(top, 0),
+      behavior: 'smooth',
+    })
+  }
+
+  const scrollToBookingCard = () => {
+    const card = bookingCardRef.current
+    if (!card) return
+
+    const top = card.getBoundingClientRect().top + window.scrollY - STICKY_NAV_OFFSET
+    scrollToY(top)
+  }
+
+  const advanceToStep = (next: Step) => {
+    clearScheduledAdvance()
+    setStep(next)
+    requestAnimationFrame(() => {
+      window.setTimeout(scrollToBookingCard, 40)
+    })
+  }
+
+  const scheduleAdvance = (next: Step, delayMs = AUTO_ADVANCE_DELAY_MS) => {
+    clearScheduledAdvance()
+    autoAdvanceTimeoutRef.current = window.setTimeout(() => {
+      advanceToStep(next)
+    }, delayMs)
+  }
+
+  const handleServiceSelect = (serviceId: string) => {
+    const service = getServiceById(serviceId)
+    const defaultLength = service ? getServiceDefaultLengthOption(service) : undefined
+
+    setForm(current => ({
+      ...current,
+      serviceId,
+      serviceLengthId: defaultLength?.id || '',
+    }))
+    setErrors(current => ({ ...current, serviceId: undefined, serviceLengthId: undefined }))
+
+    if (service && !serviceRequiresLengthSelection(service) && step === 1) {
+      scheduleAdvance(2)
+    }
+  }
+
+  const maybeAdvanceFromPayment = (nextPaymentMethod: PaymentMethodId | '', nextDepositAgreed: boolean) => {
+    if (step === 4 && nextPaymentMethod && nextDepositAgreed) {
+      setPaymentError('')
+      scheduleAdvance(5)
+    }
+  }
+
+  useEffect(() => {
+    if (!preselectedService || step !== 1 || form.serviceId !== preselectedService) return
+
+    const card = serviceCardRefs.current[preselectedService]
+    if (!card) return
+
+    const timeoutId = window.setTimeout(() => {
+      const top = card.getBoundingClientRect().top + window.scrollY - STICKY_NAV_OFFSET
+      scrollToY(top)
+    }, 120)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [preselectedService, form.serviceId, step])
 
   const validateStep = (s: Step): boolean => {
     const errs: Partial<Record<keyof BookingFormData, string>> = {}
 
     if (s === 1) {
       if (!form.serviceId) errs.serviceId = 'Please select a service'
+      if (selectedService && serviceRequiresLengthSelection(selectedService) && !form.serviceLengthId) {
+        errs.serviceLengthId = 'Please choose a length before continuing'
+      }
     }
     if (s === 2) {
       if (!form.date) errs.date = 'Please select a date'
@@ -98,46 +259,53 @@ function BookingContent() {
   const nextStep = () => {
     if (step === 4) {
       if (!validatePayment()) return
-      setStep(5)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      advanceToStep(5)
       return
     }
     if (validateStep(step as Step)) {
-      setStep(prev => (prev + 1) as Step)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      advanceToStep((step + 1) as Step)
     }
   }
 
   const prevStep = () => {
-    setStep(prev => (prev - 1) as Step)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    advanceToStep((step - 1) as Step)
   }
 
   const handleSubmit = async () => {
-    setSubmitting(true)
-    await new Promise(r => setTimeout(r, 1500))
-
-    const appointment: Appointment = {
-      id: generateId(),
-      serviceId: form.serviceId,
-      serviceName: selectedService!.name,
-      servicePrice: selectedService!.price,
-      serviceDuration: selectedService!.duration,
-      clientName: form.clientName,
-      clientEmail: form.clientEmail,
-      clientPhone: form.clientPhone,
-      date: format(form.date!, 'yyyy-MM-dd'),
-      time: form.time,
-      notes: form.notes,
-      status: 'confirmed',
-      paymentMethod,
-      createdAt: new Date().toISOString(),
+    if (!selectedService || !form.date || !paymentMethod) {
+      return
     }
 
-    saveAppointment(appointment)
-    setConfirmed(appointment)
-    setSubmitting(false)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setSubmitting(true)
+    setSubmitError('')
+
+    try {
+      const appointment = await createAppointment({
+        serviceId: form.serviceId,
+        serviceLengthId: form.serviceLengthId || undefined,
+        clientName: form.clientName,
+        clientEmail: form.clientEmail,
+        clientPhone: form.clientPhone,
+        date: format(form.date, 'yyyy-MM-dd'),
+        time: form.time,
+        notes: form.notes,
+        paymentMethod,
+      })
+
+      setConfirmed(appointment)
+      setSubmitting(false)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (error) {
+      setSubmitting(false)
+      setSubmitError(error instanceof Error ? error.message : 'Unable to confirm your appointment right now.')
+
+      if (error instanceof Error && error.message.toLowerCase().includes('already booked')) {
+        setStep(2)
+        setErrors(prev => ({ ...prev, time: 'That time slot was just booked. Please choose another time.' }))
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   const STEPS = [
@@ -197,7 +365,7 @@ function BookingContent() {
 
         {/* STEP 1 — Service Selection */}
         {step === 1 && (
-          <div className="card-luxury p-6 md:p-8">
+          <div ref={bookingCardRef} className="card-luxury p-6 md:p-8">
             <h2 className="font-display text-2xl font-medium mb-6">Choose Your Service</h2>
 
             {/* Category Filter */}
@@ -221,10 +389,21 @@ function BookingContent() {
             {/* Service List */}
             <div className="space-y-3">
               {filteredServices.map(service => (
-                <button
+                <div
                   key={service.id}
-                  onClick={() => setForm(f => ({ ...f, serviceId: service.id }))}
-                  className="w-full text-left p-4 rounded transition-all"
+                  role="button"
+                  tabIndex={0}
+                  ref={node => {
+                    serviceCardRefs.current[service.id] = node
+                  }}
+                  onClick={() => handleServiceSelect(service.id)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      handleServiceSelect(service.id)
+                    }
+                  }}
+                  className="w-full text-left p-4 rounded transition-all cursor-pointer"
                   style={{
                     border: `1px solid ${form.serviceId === service.id ? 'var(--onyx)' : '#E8DDD0'}`,
                     background: form.serviceId === service.id ? 'rgba(13,13,13,0.03)' : 'white',
@@ -252,9 +431,26 @@ function BookingContent() {
                           <Clock size={10} /> {formatDuration(service.duration)}
                         </span>
                       </div>
+                      {service.lengthOptions?.length ? (
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                          {service.lengthOptions.map(option => (
+                            <span key={option.id}>
+                              {option.label} ${option.price}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                          {formatServicePriceLabel(service)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-display text-xl font-medium">${service.price}</span>
+                      <span className="font-display text-xl font-medium">
+                        {service.lengthOptions?.length
+                          ? `From $${getServiceStartingPrice(service)}`
+                          : formatServicePriceLabel(service)}
+                      </span>
                       <div
                         className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
                         style={{
@@ -268,12 +464,52 @@ function BookingContent() {
                       </div>
                     </div>
                   </div>
-                </button>
+
+                  {form.serviceId === service.id && service.lengthOptions && service.lengthOptions.length > 1 && (
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: '#E8DDD0' }}>
+                      <div
+                        className="text-[0.65rem] font-medium tracking-wider uppercase mb-2"
+                        style={{ color: 'var(--muted)' }}
+                      >
+                        Choose Length
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {service.lengthOptions.map(option => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
+                              setForm(current => ({ ...current, serviceLengthId: option.id }))
+                              setErrors(current => ({ ...current, serviceLengthId: undefined }))
+                              if (step === 1) {
+                                scheduleAdvance(2)
+                              }
+                            }}
+                            className="p-3 text-left rounded transition-all"
+                            style={{
+                              border: `1px solid ${form.serviceLengthId === option.id ? 'var(--onyx)' : '#E8DDD0'}`,
+                              background: form.serviceLengthId === option.id ? 'rgba(13,13,13,0.04)' : 'white',
+                            }}
+                          >
+                            <div className="text-sm font-medium">{option.label}</div>
+                            <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                              ${option.price}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
             {errors.serviceId && (
               <p className="text-red-500 text-sm mt-4">{errors.serviceId}</p>
+            )}
+            {errors.serviceLengthId && (
+              <p className="text-red-500 text-sm mt-2">{errors.serviceLengthId}</p>
             )}
 
             <div className="flex justify-end mt-8">
@@ -286,7 +522,7 @@ function BookingContent() {
 
         {/* STEP 2 — Date & Time */}
         {step === 2 && (
-          <div className="card-luxury p-6 md:p-8">
+          <div ref={bookingCardRef} className="card-luxury p-6 md:p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display text-2xl font-medium">Select Date & Time</h2>
               {selectedService && (
@@ -294,7 +530,12 @@ function BookingContent() {
                   <div className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
                     {selectedService.name}
                   </div>
-                  <div className="font-display text-lg">${selectedService.price}</div>
+                  {selectedLengthOption && (
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                      {selectedLengthOption.label}
+                    </div>
+                  )}
+                  <div className="font-display text-lg">${selectedServicePrice}</div>
                 </div>
               )}
             </div>
@@ -327,7 +568,13 @@ function BookingContent() {
                       <button
                         key={slot}
                         disabled={isBooked}
-                        onClick={() => setForm(f => ({ ...f, time: slot }))}
+                        onClick={() => {
+                          setForm(f => ({ ...f, time: slot }))
+                          setErrors(current => ({ ...current, time: undefined }))
+                          if (step === 2) {
+                            scheduleAdvance(3)
+                          }
+                        }}
                         className={`time-slot ${isBooked ? 'disabled' : ''} ${isSelected ? 'selected' : ''}`}
                       >
                         {slot}
@@ -339,6 +586,9 @@ function BookingContent() {
                   <p className="text-xs mt-3" style={{ color: 'var(--muted)' }}>
                     Strikethrough times are already booked.
                   </p>
+                )}
+                {availabilityError && (
+                  <p className="text-amber-700 text-sm mt-2">{availabilityError}</p>
                 )}
                 {errors.time && <p className="text-red-500 text-sm mt-2">{errors.time}</p>}
               </div>
@@ -357,7 +607,7 @@ function BookingContent() {
 
         {/* STEP 3 — Client Info */}
         {step === 3 && (
-          <div className="card-luxury p-6 md:p-8">
+          <div ref={bookingCardRef} className="card-luxury p-6 md:p-8">
             <h2 className="font-display text-2xl font-medium mb-6">Your Information</h2>
 
             {/* Booking Summary Bar */}
@@ -369,7 +619,10 @@ function BookingContent() {
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign size={14} style={{ color: 'var(--gold-dark)' }} />
                   <span className="font-medium">{selectedService.name}</span>
-                  <span style={{ color: 'var(--muted)' }}>· ${selectedService.price}</span>
+                  {selectedLengthOption && (
+                    <span style={{ color: 'var(--muted)' }}>· {selectedLengthOption.label}</span>
+                  )}
+                  <span style={{ color: 'var(--muted)' }}>· ${selectedServicePrice}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar size={14} style={{ color: 'var(--gold-dark)' }} />
@@ -384,10 +637,14 @@ function BookingContent() {
                   Full Name *
                 </label>
                 <div className="relative">
-                  <User size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+                  <User
+                    size={14}
+                    className="absolute left-[1.125rem] top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: 'var(--muted)' }}
+                  />
                   <input
                     type="text"
-                    className={`input-luxury pl-9 ${errors.clientName ? 'error' : ''}`}
+                    className={`input-luxury with-icon ${errors.clientName ? 'error' : ''}`}
                     placeholder="Your full name"
                     value={form.clientName}
                     onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))}
@@ -402,10 +659,14 @@ function BookingContent() {
                     Email Address *
                   </label>
                   <div className="relative">
-                    <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+                    <Mail
+                      size={14}
+                      className="absolute left-[1.125rem] top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: 'var(--muted)' }}
+                    />
                     <input
                       type="email"
-                      className={`input-luxury pl-9 ${errors.clientEmail ? 'error' : ''}`}
+                      className={`input-luxury with-icon ${errors.clientEmail ? 'error' : ''}`}
                       placeholder="your@email.com"
                       value={form.clientEmail}
                       onChange={e => setForm(f => ({ ...f, clientEmail: e.target.value }))}
@@ -419,13 +680,20 @@ function BookingContent() {
                     Phone Number *
                   </label>
                   <div className="relative">
-                    <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+                    <Phone
+                      size={14}
+                      className="absolute left-[1.125rem] top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: 'var(--muted)' }}
+                    />
                     <input
                       type="tel"
-                      className={`input-luxury pl-9 ${errors.clientPhone ? 'error' : ''}`}
+                      className={`input-luxury with-icon ${errors.clientPhone ? 'error' : ''}`}
                       placeholder="(214) 555-0000"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      maxLength={14}
                       value={form.clientPhone}
-                      onChange={e => setForm(f => ({ ...f, clientPhone: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, clientPhone: formatPhoneNumber(e.target.value) }))}
                     />
                   </div>
                   {errors.clientPhone && <p className="text-red-500 text-xs mt-1">{errors.clientPhone}</p>}
@@ -459,7 +727,7 @@ function BookingContent() {
 
         {/* STEP 4 — Deposit & Payment */}
         {step === 4 && (
-          <div className="card-luxury p-6 md:p-8">
+          <div ref={bookingCardRef} className="card-luxury p-6 md:p-8">
             <h2 className="font-display text-2xl font-medium mb-2">Secure Your Spot</h2>
             <p className="text-sm mb-6" style={{ color: 'var(--muted)' }}>
               A <strong>${DEPOSIT_AMOUNT} non-refundable deposit</strong> is required to confirm your appointment.
@@ -475,7 +743,10 @@ function BookingContent() {
                 <div className="flex items-center gap-2 text-sm">
                   <DollarSign size={14} style={{ color: 'var(--gold-dark)' }} />
                   <span className="font-medium">{selectedService.name}</span>
-                  <span style={{ color: 'var(--muted)' }}>· ${selectedService.price}</span>
+                  {selectedLengthOption && (
+                    <span style={{ color: 'var(--muted)' }}>· {selectedLengthOption.label}</span>
+                  )}
+                  <span style={{ color: 'var(--muted)' }}>· ${selectedServicePrice}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar size={14} style={{ color: 'var(--gold-dark)' }} />
@@ -514,7 +785,12 @@ function BookingContent() {
                 {PAYMENT_METHODS.map(method => (
                   <button
                     key={method.id}
-                    onClick={() => { setPaymentMethod(method.id); setPaymentError('') }}
+                    onClick={() => {
+                      const nextPaymentMethod = method.id
+                      setPaymentMethod(nextPaymentMethod)
+                      setPaymentError('')
+                      maybeAdvanceFromPayment(nextPaymentMethod, depositAgreed)
+                    }}
                     className="p-4 text-left transition-all"
                     style={{
                       border: `2px solid ${paymentMethod === method.id ? 'var(--onyx)' : '#E8DDD0'}`,
@@ -556,7 +832,12 @@ function BookingContent() {
               <input
                 type="checkbox"
                 checked={depositAgreed}
-                onChange={e => { setDepositAgreed(e.target.checked); setPaymentError('') }}
+                onChange={e => {
+                  const nextDepositAgreed = e.target.checked
+                  setDepositAgreed(nextDepositAgreed)
+                  setPaymentError('')
+                  maybeAdvanceFromPayment(paymentMethod, nextDepositAgreed)
+                }}
                 className="mt-0.5 flex-shrink-0"
                 style={{ width: '16px', height: '16px', accentColor: 'var(--onyx)' }}
               />
@@ -585,13 +866,14 @@ function BookingContent() {
 
         {/* STEP 5 — Review & Confirm */}
         {step === 5 && !confirmed && (
-          <div className="card-luxury p-6 md:p-8">
+          <div ref={bookingCardRef} className="card-luxury p-6 md:p-8">
             <h2 className="font-display text-2xl font-medium mb-6">Review & Confirm</h2>
 
             {/* Summary */}
             <div className="space-y-4">
               <SummaryRow label="Service" value={selectedService?.name || ''} />
-              <SummaryRow label="Price" value={`$${selectedService?.price}`} />
+              {selectedLengthOption && <SummaryRow label="Length" value={selectedLengthOption.label} />}
+              <SummaryRow label="Price" value={`$${selectedServicePrice}`} />
               <SummaryRow label="Duration" value={formatDuration(selectedService?.duration || 0)} />
               <SummaryRow label="Date" value={form.date ? format(form.date, 'EEEE, MMMM d, yyyy') : ''} />
               <SummaryRow label="Time" value={form.time} />
@@ -617,6 +899,13 @@ function BookingContent() {
             >
               By confirming, you agree to our 24-hour cancellation policy. Your $50 deposit is due immediately via your chosen payment method to secure this appointment.
             </div>
+
+            {submitError && (
+              <div className="flex items-center gap-2 mt-4 text-red-600 text-sm">
+                <AlertCircle size={14} />
+                {submitError}
+              </div>
+            )}
 
             <div className="flex justify-between mt-8">
               <button onClick={prevStep} className="btn-outline flex items-center gap-2">
@@ -645,7 +934,7 @@ function BookingContent() {
 
         {/* SUCCESS */}
         {confirmed && (
-          <div className="card-luxury p-8 md:p-12 text-center">
+          <div ref={bookingCardRef} className="card-luxury p-8 md:p-12 text-center">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
               style={{ background: 'var(--blush)' }}
@@ -682,6 +971,7 @@ function BookingContent() {
               </div>
               <div className="space-y-3">
                 <SummaryRow label="Service" value={confirmed.serviceName} />
+                {confirmed.serviceLength && <SummaryRow label="Length" value={confirmed.serviceLength} />}
                 <SummaryRow label="Date" value={format(new Date(confirmed.date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')} />
                 <SummaryRow label="Time" value={confirmed.time} />
                 <SummaryRow label="Price" value={`$${confirmed.servicePrice}`} />

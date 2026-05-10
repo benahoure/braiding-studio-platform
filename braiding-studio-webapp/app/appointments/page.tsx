@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { Appointment } from '@/types'
-import { getAppointments, updateAppointment, formatDuration } from '@/lib/data'
-import { Calendar, Clock, DollarSign, CheckCircle, XCircle, Edit2, Trash2, Plus, AlertCircle } from 'lucide-react'
+import { formatDuration } from '@/lib/data'
+import { cancelAppointment, fetchAppointmentsByEmail } from '@/lib/api'
+import { Calendar, Clock, DollarSign, CheckCircle, XCircle, Trash2, Plus, AlertCircle } from 'lucide-react'
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -14,14 +15,8 @@ export default function AppointmentsPage() {
   const [emailFilter, setEmailFilter] = useState('')
   const [emailInput, setEmailInput] = useState('')
   const [searched, setSearched] = useState(false)
-
-  const loadAppointments = () => {
-    setAppointments(getAppointments())
-  }
-
-  useEffect(() => {
-    loadAppointments()
-  }, [])
+  const [loading, setLoading] = useState(false)
+  const [lookupError, setLookupError] = useState('')
 
   const filtered = appointments.filter(a => {
     const statusMatch = filter === 'all' || a.status === filter
@@ -29,15 +24,44 @@ export default function AppointmentsPage() {
     return statusMatch && emailMatch
   })
 
-  const handleCancel = (id: string) => {
-    updateAppointment(id, { status: 'cancelled' })
-    loadAppointments()
+  const handleCancel = async (id: string) => {
+    setLookupError('')
+
+    try {
+      const updated = await cancelAppointment(id)
+      setAppointments((current) => current.map((appointment) => appointment.id === id ? updated : appointment))
+    } catch (error) {
+      setLookupError(error instanceof Error ? error.message : 'Unable to cancel this appointment right now.')
+    }
+
     setCancellingId(null)
   }
 
-  const handleSearch = () => {
-    setEmailFilter(emailInput)
+  const handleSearch = async () => {
+    const normalizedEmail = emailInput.trim().toLowerCase()
+    setLookupError('')
     setSearched(true)
+
+    if (!normalizedEmail) {
+      setEmailFilter('')
+      setAppointments([])
+      setLookupError('Enter the email address used when booking to find your appointments.')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const results = await fetchAppointmentsByEmail(normalizedEmail)
+      setAppointments(results)
+      setEmailFilter(normalizedEmail)
+    } catch (error) {
+      setAppointments([])
+      setEmailFilter(normalizedEmail)
+      setLookupError(error instanceof Error ? error.message : 'Unable to load appointments right now.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const statusIcon = (status: Appointment['status']) => {
@@ -75,21 +99,32 @@ export default function AppointmentsPage() {
               placeholder="Filter appointments by email address"
               value={emailInput}
               onChange={e => setEmailInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  void handleSearch()
+                }
+              }}
             />
           </div>
-          <button onClick={handleSearch} className="btn-primary text-sm flex-shrink-0">
-            Search
+          <button onClick={() => void handleSearch()} className="btn-primary text-sm flex-shrink-0" disabled={loading}>
+            {loading ? 'Searching...' : 'Search'}
           </button>
           {emailFilter && (
             <button
-              onClick={() => { setEmailFilter(''); setEmailInput(''); setSearched(false) }}
+              onClick={() => { setEmailFilter(''); setEmailInput(''); setSearched(false); setAppointments([]); setLookupError('') }}
               className="btn-outline text-sm flex-shrink-0"
             >
               Clear
             </button>
           )}
         </div>
+
+        {lookupError && (
+          <div className="flex items-center gap-2 mb-6 text-red-600 text-sm">
+            <AlertCircle size={14} />
+            {lookupError}
+          </div>
+        )}
 
         {/* Status Filter */}
         <div className="flex gap-2 flex-wrap mb-6">
@@ -120,12 +155,14 @@ export default function AppointmentsPage() {
             <AlertCircle size={36} className="mx-auto mb-4" style={{ color: '#D4C9BA' }} />
             <h3 className="font-display text-2xl font-light mb-2">No Appointments Found</h3>
             <p className="text-sm mb-6" style={{ color: 'var(--muted)' }}>
-              {appointments.length === 0
-                ? "You haven't booked any appointments yet."
-                : "No appointments match your current filters."}
+              {!searched
+                ? 'Search using the email address from your booking to view your appointments.'
+                : appointments.length === 0
+                  ? "We couldn't find any appointments for that email yet."
+                  : 'No appointments match your current filters.'}
             </p>
             <Link href="/booking" className="btn-primary">
-              Book Your First Appointment
+              {searched ? 'Book Another Appointment' : 'Book Your First Appointment'}
             </Link>
           </div>
         ) : (
@@ -184,6 +221,9 @@ export default function AppointmentsPage() {
                         <span className="flex items-center gap-1">
                           <Clock size={11} /> {formatDuration(apt.serviceDuration)}
                         </span>
+                        {apt.serviceLength && (
+                          <span>{apt.serviceLength}</span>
+                        )}
                       </div>
                       <div className="text-xs mt-1" style={{ color: '#B5A898' }}>
                         {apt.clientName} · {apt.clientEmail}
@@ -202,7 +242,7 @@ export default function AppointmentsPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs" style={{ color: 'var(--muted)' }}>Cancel?</span>
                             <button
-                              onClick={() => handleCancel(apt.id)}
+                              onClick={() => void handleCancel(apt.id)}
                               className="text-xs font-medium px-3 py-1.5 rounded"
                               style={{
                                 background: '#FEF2F2',

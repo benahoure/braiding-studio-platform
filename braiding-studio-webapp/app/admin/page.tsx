@@ -184,7 +184,7 @@ export default function AdminPage() {
                       <td className="px-4 py-3">
                         <div className="text-sm">{apt.serviceName}</div>
                         <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                          {formatDuration(apt.serviceDuration)}
+                          {apt.serviceLength ? `${apt.serviceLength} · ` : ''}{formatDuration(apt.serviceDuration)}
                         </div>
                       </td>
                       <td className="px-4 py-3">

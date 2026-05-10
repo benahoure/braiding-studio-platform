@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Phone, Mail, MapPin, Instagram, Clock, Send, CheckCircle } from 'lucide-react'
 import { BUSINESS_INFO } from '@/lib/data'
 import { ContactFormData } from '@/types'
+import { submitContactMessage } from '@/lib/api'
+import { formatPhoneNumber } from '@/lib/phone'
 
 function TikTokIcon({ size = 16 }: { size?: number }) {
   return (
@@ -20,6 +22,7 @@ export default function ContactSection() {
   const [errors, setErrors] = useState<Partial<ContactFormData>>({})
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const validate = () => {
     const errs: Partial<ContactFormData> = {}
@@ -32,10 +35,18 @@ export default function ContactSection() {
 
   const handleSubmit = async () => {
     if (!validate()) return
+
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
-    setLoading(false)
-    setSubmitted(true)
+    setSubmitError('')
+
+    try {
+      await submitContactMessage(form)
+      setLoading(false)
+      setSubmitted(true)
+    } catch (error) {
+      setLoading(false)
+      setSubmitError(error instanceof Error ? error.message : 'Unable to send your message right now.')
+    }
   }
 
   return (
@@ -223,8 +234,11 @@ export default function ContactSection() {
                         type="tel"
                         className="input-luxury"
                         placeholder="(214) 555-0000"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        maxLength={14}
                         value={form.phone}
-                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        onChange={e => setForm(f => ({ ...f, phone: formatPhoneNumber(e.target.value) }))}
                         style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: 'var(--cream)' }}
                       />
                     </div>
@@ -262,6 +276,10 @@ export default function ContactSection() {
                       </>
                     )}
                   </button>
+
+                  {submitError && (
+                    <p className="text-red-400 text-xs mt-2">{submitError}</p>
+                  )}
                 </div>
               </div>
             )}

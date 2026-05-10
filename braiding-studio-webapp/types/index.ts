@@ -2,9 +2,11 @@ export interface Service {
   id: string
   name: string
   category: ServiceCategory
-  price: number
   duration: number // in minutes
   description: string
+  price?: number
+  lengthOptions?: ServiceLengthOption[]
+  isStartingPrice?: boolean
   popular?: boolean
   image?: string
 }
@@ -16,7 +18,19 @@ export type ServiceCategory =
   | 'Boho Braids'
   | 'Fulani Braids'
   | 'Kids Braids'
-  | 'Other'
+  | 'Twist Braids'
+
+export type ServiceLengthId =
+  | 'mid-back'
+  | 'waist-length'
+  | 'butt-length'
+  | 'mid'
+
+export interface ServiceLengthOption {
+  id: ServiceLengthId
+  label: string
+  price: number
+}
 
 export interface TimeSlot {
   time: string
@@ -29,6 +43,8 @@ export interface Appointment {
   serviceName: string
   servicePrice: number
   serviceDuration: number
+  serviceLength?: string
+  serviceLengthId?: ServiceLengthId
   clientName: string
   clientEmail: string
   clientPhone: string
@@ -42,6 +58,7 @@ export interface Appointment {
 
 export interface BookingFormData {
   serviceId: string
+  serviceLengthId: string
   clientName: string
   clientEmail: string
   clientPhone: string

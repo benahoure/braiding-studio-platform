@@ -4,8 +4,14 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Clock, Star, Search } from 'lucide-react'
-import { SERVICES, SERVICE_CATEGORIES, formatDuration } from '@/lib/data'
-import { ServiceCategory } from '@/types'
+import {
+  SERVICES,
+  SERVICE_CATEGORIES,
+  formatDuration,
+  formatServicePriceLabel,
+  getServiceStartingPrice,
+} from '@/lib/data'
+import { Service, ServiceCategory } from '@/types'
 
 function ServicePlaceholder({ name, category }: { name: string; category: string }) {
   return (
@@ -43,6 +49,34 @@ function ServicePlaceholder({ name, category }: { name: string; category: string
           zIndex: 1,
         }}
       />
+    </div>
+  )
+}
+
+function ServicePriceDetails({ service }: { service: Service }) {
+  if (service.lengthOptions?.length) {
+    return (
+      <div className="space-y-2 mb-5">
+        <div
+          className="text-[0.62rem] font-medium tracking-[0.18em] uppercase"
+          style={{ color: 'var(--muted)' }}
+        >
+          Available Lengths
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1" style={{ fontSize: '0.78rem', color: 'var(--charcoal)' }}>
+          {service.lengthOptions.map(option => (
+            <span key={option.id}>
+              <span className="font-medium">{option.label}</span> ${option.price}
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-5" style={{ fontSize: '0.82rem', color: 'var(--charcoal)' }}>
+      {formatServicePriceLabel(service)}
     </div>
   )
 }
@@ -217,6 +251,8 @@ export default function ServicesSection() {
                     {service.description}
                   </p>
 
+                  <ServicePriceDetails service={service} />
+
                   {/* Price + CTA */}
                   <div className="flex items-end justify-between pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                     <div>
@@ -224,7 +260,9 @@ export default function ServicesSection() {
                         className="font-display font-medium"
                         style={{ fontSize: '1.5rem', color: 'var(--onyx)' }}
                       >
-                        ${service.price}
+                        {service.lengthOptions?.length
+                          ? `From $${getServiceStartingPrice(service)}`
+                          : formatServicePriceLabel(service)}
                       </div>
                       <div
                         className="flex items-center gap-1 mt-0.5"

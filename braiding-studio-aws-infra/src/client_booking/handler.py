@@ -6,10 +6,14 @@ from shared.common import (
     PAYMENT_METHODS,
     appointment_response,
     bad_request,
+    booking_client_email_content,
+    booking_owner_email_content,
     clean_string,
     generate_id,
     get_appointment,
     get_service,
+    get_service_length_option,
+    get_service_price,
     is_slot_booked,
     list_appointments,
     method_not_allowed,
@@ -18,7 +22,6 @@ from shared.common import (
     parse_body,
     response,
     send_email,
-    summarize_appointment,
     update_appointment,
     upsert_client,
     validate_email,
@@ -49,6 +52,11 @@ def _create_appointment(payload):
     if not service:
         return bad_request("Unknown serviceId")
 
+    service_length_id = clean_string(payload.get("serviceLengthId"))
+    service_length_option = get_service_length_option(service, service_length_id)
+    if service.get("lengthOptions") and not service_length_option:
+        return bad_request("A valid serviceLengthId is required for this service")
+
     payment_method = clean_string(payload.get("paymentMethod"))
     if payment_method not in PAYMENT_METHODS:
         return bad_request("Unsupported paymentMethod")
@@ -74,7 +82,9 @@ def _create_appointment(payload):
         "serviceId": payload["serviceId"],
         "serviceName": service["name"],
         "serviceCategory": service["category"],
-        "servicePrice": service["price"],
+        "serviceLengthId": service_length_option["id"] if service_length_option else "",
+        "serviceLength": service_length_option["label"] if service_length_option else "",
+        "servicePrice": get_service_price(service, service_length_id),
         "serviceDuration": service["duration"],
         "appointmentDate": payload["date"],
         "appointmentTime": payload["time"],
@@ -91,11 +101,18 @@ def _create_appointment(payload):
     APPOINTMENTS_TABLE.put_item(Item=item)
 
     subject = f"Booking confirmed: {item['serviceName']} on {item['appointmentDate']}"
-    summary = summarize_appointment(item)
-    send_email(subject, f"Your booking is confirmed.\n\n{summary}", item["clientEmail"])
+    client_text_body, client_html_body = booking_client_email_content(item)
+    send_email(subject, client_text_body, item["clientEmail"], html_body=client_html_body)
     owner_email = os.environ.get("NOTIFICATION_EMAIL_TO")
     if owner_email:
-        send_email(subject, f"A new appointment was booked.\n\n{summary}", owner_email, reply_to=item["clientEmail"])
+        owner_text_body, owner_html_body = booking_owner_email_content(item)
+        send_email(
+            subject,
+            owner_text_body,
+            owner_email,
+            reply_to=item["clientEmail"],
+            html_body=owner_html_body,
+        )
 
     return response(201, {"appointment": appointment_response(item)})
 
@@ -103,8 +120,9 @@ def _create_appointment(payload):
 def _list_appointments(event):
     query_params = event.get("queryStringParameters") or {}
     email = clean_string(query_params.get("email")).lower() or None
+    date_value = clean_string(query_params.get("date")) or None
     status = clean_string(query_params.get("status")) or None
-    items = [appointment_response(item) for item in list_appointments(email=email, status=status)]
+    items = [appointment_response(item) for item in list_appointments(email=email, status=status, date_value=date_value)]
     return response(200, {"appointments": items})
 
 
