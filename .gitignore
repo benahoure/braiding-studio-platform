@@ -1,9 +1,43 @@
-.DS_Store
+# ── Claude session context (local working notes — not for the public repo) ──
+CLAUDE.md
 .claude/
-.next/
-node_modules/
+
+# ── OS / editor ──
+.DS_Store
 *.log
-builds/
-braiding-studio-webapp/_image-assets/
-braiding-studio-webapp/out/
+.idea/
+.vscode/
+
+# ── Node / frontend ──
+node_modules/
+apps/web/dist/
+coverage/
+*.tsbuildinfo
+
+# ── Env files — even publishable keys don't belong in git ──
+.env
+.env.*
+!.env.example
+
+# ── Python / lambdas ──
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+lambdas/dist/
+
+# ── Terraform — state and plans must NEVER be committed ──
+# (committed on purpose: .terraform.lock.hcl, backend/*.tfbackend, env/*.tfvars — no secrets by design)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# ── Legacy remnant (safe to keep ignored) ──
 terraform-state-backup-live.json
+
+# Legacy Next.js build output (app removed 2026-07-12)
+.next/

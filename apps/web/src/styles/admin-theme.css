@@ -1,0 +1,134 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ROSE NOIR — Braids by Deb admin theme
+   A cinematic, feminine "backstage vanity" look: deep plum-noir canvas,
+   glass panels, rose-gold accents and soft glow. Scoped entirely under
+   `.admin-theme` so the public site is untouched. It retokens the utility
+   classes the admin pages already use — no page logic changes required.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.admin-theme {
+  /* Re-point the brand variables inside admin only */
+  --gold: #e8789f;
+  --gold-light: #f5a8c2;
+  --gold-pale: #ffd3e4;
+  --gold-dark: #c95e86;
+  --cream: #fff2f8;
+  --onyx: #1f0a15;
+  --muted: rgba(255, 228, 240, 0.6);
+  --border: rgba(240, 170, 205, 0.18);
+
+  color: rgba(255, 239, 246, 0.92);
+  background: #150a11;
+}
+
+/* ── Canvas — cinematic plum with drifting rose light ─────────────────── */
+.admin-theme main,
+.admin-theme .adm-canvas {
+  /* Safety net: a single over-wide row must never put the whole admin
+     into horizontal scroll on mobile. */
+  overflow-x: clip;
+  background:
+    radial-gradient(ellipse 60% 42% at 82% -6%, rgba(232, 120, 159, 0.13) 0%, transparent 60%),
+    radial-gradient(ellipse 44% 34% at 4% 30%, rgba(160, 80, 130, 0.1) 0%, transparent 62%),
+    radial-gradient(ellipse 52% 40% at 60% 108%, rgba(120, 46, 92, 0.16) 0%, transparent 64%),
+    linear-gradient(165deg, #1a0d16 0%, #150a11 45%, #180b12 100%);
+}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────── */
+.admin-theme .bg-paper {
+  background: linear-gradient(165deg, rgba(255, 214, 232, 0.06) 0%, rgba(255, 214, 232, 0.025) 100%);
+}
+.admin-theme .bg-white { background: #241220; }
+.admin-theme .bg-white\/90 { background: rgba(26, 13, 22, 0.9); }
+.admin-theme .bg-white\/95 { background: rgba(26, 13, 22, 0.95); }
+.admin-theme .bg-cream { background: rgba(255, 214, 232, 0.04); }
+.admin-theme .bg-cream-deep { background: rgba(12, 5, 10, 0.5); }
+.admin-theme .bg-cream-deep\/20 { background: rgba(12, 5, 10, 0.25); }
+.admin-theme .bg-cream-deep\/40 { background: rgba(12, 5, 10, 0.4); }
+.admin-theme .bg-cream-border { background: rgba(240, 170, 205, 0.15); }
+.admin-theme .bg-cocoa { background: #2a1523; }
+
+.admin-theme [class*='border-cream-border'] { border-color: rgba(240, 170, 205, 0.16); }
+
+.admin-theme .shadow-soft {
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(240, 170, 205, 0.07),
+    inset 0 1px 0 rgba(255, 214, 232, 0.05);
+}
+
+/* ── Typography ───────────────────────────────────────────────────────── */
+.admin-theme .text-espresso { color: #ffeff6; }
+.admin-theme .text-cocoa { color: #f4d7e5; }
+.admin-theme .text-cocoa\/50 { color: rgba(244, 215, 229, 0.55); }
+.admin-theme .text-cocoa\/60 { color: rgba(244, 215, 229, 0.64); }
+
+.admin-theme .text-mocha { color: rgba(255, 228, 240, 0.75); }
+.admin-theme .text-mocha\/30 { color: rgba(255, 228, 240, 0.35); }
+.admin-theme .text-mocha\/35 { color: rgba(255, 228, 240, 0.4); }
+.admin-theme .text-mocha\/40 { color: rgba(255, 228, 240, 0.45); }
+.admin-theme .text-mocha\/50 { color: rgba(255, 228, 240, 0.52); }
+.admin-theme .text-mocha\/55 { color: rgba(255, 228, 240, 0.56); }
+.admin-theme .text-mocha\/60 { color: rgba(255, 228, 240, 0.62); }
+.admin-theme .text-mocha\/65 { color: rgba(255, 228, 240, 0.66); }
+.admin-theme .text-mocha\/70 { color: rgba(255, 228, 240, 0.72); }
+.admin-theme .text-mocha\/80 { color: rgba(255, 228, 240, 0.82); }
+
+.admin-theme .text-error { color: #ff9da6; }
+.admin-theme .text-gold-light { color: #f5a8c2; }
+.admin-theme .text-gold-dark { color: #f0a9c4; }
+
+.admin-theme h1,
+.admin-theme h2 { letter-spacing: 0.01em; }
+
+/* ── Forms ────────────────────────────────────────────────────────────── */
+.admin-theme input,
+.admin-theme select,
+.admin-theme textarea { color-scheme: dark; }
+.admin-theme input::placeholder,
+.admin-theme textarea::placeholder { color: rgba(255, 228, 240, 0.32); }
+.admin-theme select option { background: #241220; color: #ffeff6; }
+.admin-theme [class*='focus:ring']:focus {
+  --tw-ring-color: rgba(232, 120, 159, 0.45);
+}
+
+/* ── Details ──────────────────────────────────────────────────────────── */
+.admin-theme ::selection { background: rgba(232, 120, 159, 0.4); color: #fff2f8; }
+.admin-theme ::-webkit-scrollbar { width: 10px; height: 10px; }
+.admin-theme ::-webkit-scrollbar-track { background: transparent; }
+.admin-theme ::-webkit-scrollbar-thumb {
+  background: rgba(232, 120, 159, 0.22);
+  border-radius: 999px;
+  border: 3px solid #150a11;
+}
+.admin-theme ::-webkit-scrollbar-thumb:hover { background: rgba(232, 120, 159, 0.38); }
+
+/* Sidebar nav pill (used by AdminLayout) */
+.admin-theme .adm-nav-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 999px;
+  padding: 0.62rem 0.9rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: rgba(255, 228, 240, 0.55);
+  transition: all 0.25s ease;
+}
+.admin-theme .adm-nav-pill:hover { color: rgba(255, 228, 240, 0.9); background: rgba(255, 214, 232, 0.05); }
+.admin-theme .adm-nav-pill.active {
+  /* Background + glow are painted by the shared framer-motion pill that
+     glides between items — this class only handles text/icon color. */
+  color: #fff2f8;
+}
+.admin-theme .adm-nav-pill.active svg { color: #f5a8c2; }
+
+/* Soft float for the ambient orbs in the shell */
+@keyframes adm-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -14px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-theme .adm-orb { animation: none !important; }
+}

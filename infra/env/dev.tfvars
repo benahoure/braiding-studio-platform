@@ -1,0 +1,16 @@
+env                        = "dev"
+create_oidc_provider       = false # provider is owned by infra/bootstrap
+domain_name                = "dev.braidsbydeb.com"
+hosted_zone_name           = "braidsbydeb.com"
+lambda_memory_public       = 256
+lambda_memory_admin        = 256
+lambda_timeout             = 29
+log_retention_days         = 14
+enable_waf                 = false
+log_level                  = "DEBUG"
+allowed_origin             = "https://dev.braidsbydeb.com"
+additional_allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+ses_sender_email           = "no-reply@braidsbydeb.com"
+admin_alert_email          = "ben.ahoure29@gmail.com,axellelialy@gmail.com,axelle.lialy@braidsbydeb.com,ben.landry@braidsbydeb.com"
+cognito_callback_urls      = ["https://dev.braidsbydeb.com/admin", "https://dev.braidsbydeb.com/admin/callback"]
+cognito_logout_urls        = ["https://dev.braidsbydeb.com/admin"]

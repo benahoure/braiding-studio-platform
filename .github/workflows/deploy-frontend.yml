@@ -1,0 +1,186 @@
+name: Deploy Frontend
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/deploy-frontend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: "22"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Lint, Test & Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Test
+        working-directory: apps/web
+        run: npm test
+
+      - name: Build check
+        working-directory: apps/web
+        run: npm run build
+
+  build-and-deploy-dev:
+    name: Build & Deploy to dev
+    needs: test
+    if: >
+      github.event_name == 'push' && github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build
+        working-directory: apps/web
+        env:
+          VITE_API_BASE_URL: https://dev.braidsbydeb.com/api
+          VITE_CDN_BASE_URL: https://cdn.dev.braidsbydeb.com
+          VITE_COGNITO_DOMAIN: auth.dev.braidsbydeb.com
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_REVIEW_URL: ${{ vars.VITE_GOOGLE_REVIEW_URL }}
+        run: npm run build
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        working-directory: apps/web
+        run: |
+          aws s3 sync dist/ s3://braidsbydeb-dev-frontend/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --no-cli-pager
+          aws s3 cp dist/index.html s3://braidsbydeb-dev-frontend/index.html \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --no-cli-pager
+
+      - name: Sync assets to CDN bucket
+        working-directory: apps/web
+        run: |
+          aws s3 sync public/images "s3://braidsbydeb-dev-assets/images" \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude ".DS_Store" --no-cli-pager
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*" \
+            --no-cli-pager
+
+  build-and-deploy-prod:
+    name: Build & Deploy to prod
+    needs: build-and-deploy-dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build
+        working-directory: apps/web
+        env:
+          VITE_API_BASE_URL: https://braidsbydeb.com/api
+          VITE_CDN_BASE_URL: https://cdn.braidsbydeb.com
+          VITE_COGNITO_DOMAIN: auth.braidsbydeb.com
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_REVIEW_URL: ${{ vars.VITE_GOOGLE_REVIEW_URL }}
+        run: npm run build
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        working-directory: apps/web
+        run: |
+          aws s3 sync dist/ s3://braidsbydeb-prod-frontend/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --no-cli-pager
+          aws s3 cp dist/index.html s3://braidsbydeb-prod-frontend/index.html \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --no-cli-pager
+
+      - name: Sync assets to CDN bucket
+        working-directory: apps/web
+        run: |
+          aws s3 sync public/images "s3://braidsbydeb-prod-assets/images" \
+            --cache-control "public,max-age=31536000,immutable" --no-cli-pager
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*" \
+            --no-cli-pager
