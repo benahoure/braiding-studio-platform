@@ -7,6 +7,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Must be set at import time (not in a fixture): common/dynamo.py creates its
+# boto3 resource at module import, which fails test collection with
+# NoRegionError on region-less machines like CI runners.
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+os.environ.setdefault("AWS_REGION", "us-east-1")
+
 # Stub out the stripe package so tests that transitively import common.stripe_client
 # don't fail with ModuleNotFoundError when the package isn't installed in the test venv.
 if "stripe" not in sys.modules:

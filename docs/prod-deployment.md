@@ -148,14 +148,17 @@ aws ssm put-parameter --name /braidsbydeb/prod/stripe/webhook_secret \
 ## Release flow (recommended): CI/CD
 
 With GitHub environments configured ([github-environments.md](github-environments.md)),
-every push to `main` deploys **dev first, then prod behind a required-reviewer
-approval** on the `production` environment:
+every push to `main` deploys **dev automatically**. **Prod never deploys from a
+push** — ship it with Actions → select workflow → *Run workflow* → environment
+`prod` (plus the `production` environment's required-reviewer approval, where the
+GitHub plan enforces it — note: protection rules are not enforced on private
+repos on the free plan, which is why prod is dispatch-only at the workflow level):
 
-| Change | Pipeline | Prod gate |
+| Change | Pipeline | Prod trigger |
 |---|---|---|
-| `apps/web/**` | deploy-frontend | manual approval after dev deploy |
-| `lambdas/**` | deploy-backend (tests + security scan first; Lambdas-only apply) | manual approval |
-| `infra/**` | deploy-infra — **manual dispatch only**, plan artifact reviewed before apply | manual approval |
+| `apps/web/**` | deploy-frontend | manual `workflow_dispatch` (env `prod`) |
+| `lambdas/**` | deploy-backend (tests + security scan first; Lambdas-only apply) | manual `workflow_dispatch` (env `prod`) |
+| `infra/**` | deploy-infra — **manual dispatch only**, plan artifact reviewed before apply | manual dispatch |
 
 Golden rule: **never ship anything to prod that didn’t run on dev first.**
 

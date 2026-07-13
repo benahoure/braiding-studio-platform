@@ -65,7 +65,9 @@ jobs:
   deploy-dev:
     name: Deploy to dev
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev')
     runs-on: ubuntu-latest
     environment: development
     permissions:
@@ -115,8 +117,11 @@ jobs:
 
   deploy-prod:
     name: Deploy to prod
-    needs: [test, deploy-dev]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    # Prod never deploys from a push — only a manual "Run workflow" with
+    # environment=prod (plus the production environment's reviewer gate,
+    # where the plan enforces it).
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
     runs-on: ubuntu-latest
     environment: production
     permissions:
