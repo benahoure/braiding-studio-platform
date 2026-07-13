@@ -123,8 +123,11 @@ jobs:
 
   build-and-deploy-prod:
     name: Build & Deploy to prod
-    needs: build-and-deploy-dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    # Prod never deploys from a push — only a manual "Run workflow" with
+    # environment=prod (plus the production environment's reviewer gate,
+    # where the plan enforces it).
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
     runs-on: ubuntu-latest
     environment: production
     permissions:
