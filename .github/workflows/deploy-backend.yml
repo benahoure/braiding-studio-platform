@@ -1,0 +1,165 @@
+name: Deploy Backend
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "lambdas/**"
+      - ".github/workflows/deploy-backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "lambdas/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.14.1"
+  PYTHON_VERSION: "3.14"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Lint, Test & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            lambdas/requirements.txt
+            lambdas/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: lambdas
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        working-directory: lambdas
+        run: ruff check src tests
+
+      - name: Type check (mypy)
+        working-directory: lambdas
+        run: mypy src
+
+      - name: Tests
+        working-directory: lambdas
+        run: pytest --cov=src --cov-report=term-missing
+
+      - name: Security scan
+        working-directory: lambdas
+        run: |
+          pip-audit -r requirements.txt
+          bandit -r src -ll
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Build Lambda packages
+        working-directory: lambdas
+        run: |
+          pip install --quiet --upgrade pip
+          make build
+
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init -backend-config=backend/dev.tfbackend -reconfigure
+
+      - name: Terraform Apply (Lambda update only)
+        working-directory: infra
+        run: |
+          terraform apply -auto-approve \
+            -var-file=env/dev.tfvars \
+            -target=module.public_api \
+            -target=module.admin_api
+
+      - name: Flush Lambda SSM cache
+        run: |
+          for fn in \
+            braidsbydeb-dev-public-api \
+            braidsbydeb-dev-admin-api; do
+            aws lambda update-function-configuration \
+              --function-name "$fn" \
+              --description "cache-flush-${{ github.run_id }}" \
+              --no-cli-pager || true
+          done
+
+  deploy-prod:
+    name: Deploy to prod
+    needs: [test, deploy-dev]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Build Lambda packages
+        working-directory: lambdas
+        run: |
+          pip install --quiet --upgrade pip
+          make build
+
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init -backend-config=backend/prod.tfbackend -reconfigure
+
+      - name: Terraform Apply (Lambda update only)
+        working-directory: infra
+        run: |
+          terraform apply -auto-approve \
+            -var-file=env/prod.tfvars \
+            -target=module.public_api \
+            -target=module.admin_api
+
+      - name: Flush Lambda SSM cache
+        run: |
+          for fn in \
+            braidsbydeb-prod-public-api \
+            braidsbydeb-prod-admin-api; do
+            aws lambda update-function-configuration \
+              --function-name "$fn" \
+              --description "cache-flush-${{ github.run_id }}" \
+              --no-cli-pager || true
+          done

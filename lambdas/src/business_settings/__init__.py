@@ -1,0 +1,1 @@
+"""Business settings Lambda package."""

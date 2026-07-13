@@ -1,0 +1,17 @@
+env                       = "prod"
+create_oidc_provider      = false
+enable_waf                = true
+domain_name               = "braidsbydeb.com"
+hosted_zone_name          = "braidsbydeb.com"
+lambda_memory_public      = 512
+lambda_memory_admin       = 512
+lambda_timeout            = 29
+log_retention_days        = 30
+waf_rate_limit            = 1000
+waf_common_override_count = false
+log_level                 = "WARNING"
+allowed_origin            = "https://braidsbydeb.com"
+ses_sender_email          = "no-reply@braidsbydeb.com"
+admin_alert_email         = "ben.ahoure29@gmail.com,axellelialy@gmail.com,axelle.lialy@braidsbydeb.com,ben.landry@braidsbydeb.com"
+cognito_callback_urls     = ["https://braidsbydeb.com/admin", "https://braidsbydeb.com/admin/callback"]
+cognito_logout_urls       = ["https://braidsbydeb.com/admin"]
