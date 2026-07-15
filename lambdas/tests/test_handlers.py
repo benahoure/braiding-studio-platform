@@ -509,3 +509,172 @@ class TestReviewAggregateDecimal:
 
         assert written["totalCount"] == 0
         assert isinstance(written["averageRating"], Decimal)
+
+
+class TestConfirmAlreadyConfirmed:
+    """Regression: the Stripe webhook races the browser's confirm call and
+    usually wins. The already-confirmed branch used to return a bare
+    {"status": "already_confirmed"} with no portalUrl, silently hiding the
+    "View My Appointment" button on the confirmation screen."""
+
+    def _appt(self):
+        return {
+            "appointmentId": "appt-race-001",
+            "status": "confirmed",
+            "appointmentToken": "tok-race-xyz",
+        }
+
+    def test_returns_full_payload_with_portal_url(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from appointments import service
+        from appointments.models import ConfirmAppointmentRequest
+
+        monkeypatch.setattr(service, "get_item", lambda table, key: self._appt())
+        monkeypatch.setattr(
+            service,
+            "retrieve_payment_intent",
+            lambda intent_id: SimpleNamespace(
+                metadata=SimpleNamespace(appointmentId="appt-race-001"), status="succeeded"
+            ),
+        )
+
+        result = service.confirm_appointment(
+            "appt-race-001", ConfirmAppointmentRequest(stripePaymentIntentId="pi_test_race")
+        )
+
+        assert result["status"] == "confirmed"
+        assert result["appointmentId"] == "appt-race-001"
+        assert result["portalUrl"].endswith("/appointment/tok-race-xyz")
+
+    def test_still_rejects_mismatched_intent(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import pytest
+
+        from appointments import service
+        from appointments.models import ConfirmAppointmentRequest
+
+        monkeypatch.setattr(service, "get_item", lambda table, key: self._appt())
+        monkeypatch.setattr(
+            service,
+            "retrieve_payment_intent",
+            lambda intent_id: SimpleNamespace(
+                metadata=SimpleNamespace(appointmentId="SOME-OTHER-APPT"), status="succeeded"
+            ),
+        )
+
+        with pytest.raises(ValueError, match="does not match"):
+            service.confirm_appointment(
+                "appt-race-001", ConfirmAppointmentRequest(stripePaymentIntentId="pi_test_race")
+            )
+
+
+class TestLengthPricing:
+    """Length tiers: the browser sends only a label — the server resolves the
+    real price from the service record and snapshots it on the appointment."""
+
+    def _service(self):
+        return {
+            "serviceId": "kl-small",
+            "name": "Small Knotless Braids",
+            "active": True,
+            "startingPrice": 20000,
+            "durationMinutes": 360,
+            "lengths": [
+                {"label": "Mid-back", "price": 20000},
+                {"label": "Waist length", "price": 30000},
+            ],
+        }
+
+    def _request(self, length_label):
+        from appointments.models import PaymentIntentRequest
+
+        return PaymentIntentRequest(
+            serviceId="kl-small",
+            clientName="Test Client",
+            clientEmail="t@example.com",
+            clientPhone="3175550123",
+            preferredDate=(dt.date.today() + dt.timedelta(days=30)).isoformat(),
+            preferredTime="09:00",
+            lengthLabel=length_label,
+            policyAccepted=True,
+        )
+
+    def _run(self, monkeypatch, length_label):
+        from types import SimpleNamespace
+
+        from appointments import service
+
+        stored = {}
+        monkeypatch.setattr(service, "get_item", lambda table, key: self._service())
+        monkeypatch.setattr(service, "_slot_is_available", lambda *a, **kw: True)
+        monkeypatch.setattr(
+            service, "create_payment_intent", lambda amount, metadata: SimpleNamespace(id="pi_x", client_secret="cs_x")
+        )
+        monkeypatch.setattr(service, "put_item", lambda table, item: stored.update(item))
+        service.create_payment_intent_hold(self._request(length_label), None, None)
+        return stored
+
+    def test_price_resolved_from_length(self, monkeypatch):
+        stored = self._run(monkeypatch, "Waist length")
+        assert stored["servicePrice"] == 30000
+        assert stored["lengthLabel"] == "Waist length"
+
+    def test_missing_length_rejected_when_service_has_lengths(self, monkeypatch):
+        import pytest
+
+        with pytest.raises(ValueError, match="choose a length"):
+            self._run(monkeypatch, None)
+
+    def test_unknown_length_rejected(self, monkeypatch):
+        import pytest
+
+        with pytest.raises(ValueError, match="choose a length"):
+            self._run(monkeypatch, "Ankle length")
+
+
+class TestBlockedTimeWindows:
+    """Partial-day blocks from settings.blockedSlots hide slots and are
+    enforced server-side in the hold validation."""
+
+    def test_settings_parse_blocked_windows(self, monkeypatch):
+        from appointments import availability
+
+        monkeypatch.setattr(
+            availability,
+            "get_item",
+            lambda table, key: {
+                "hours": availability.DEFAULT_HOURS,
+                "blockedDates": ["2099-02-01"],
+                "blockedSlots": [
+                    {"date": "2099-02-02", "start": "09:00", "end": "13:00"},
+                    {"date": "2099-02-02", "start": "18:00", "end": "20:00"},
+                    {"date": "bad", "start": "10:00", "end": "09:00"},  # inverted → ignored
+                ],
+            },
+        )
+        hours, blocked_dates, windows = availability._get_settings()
+        assert "2099-02-01" in blocked_dates
+        assert windows["2099-02-02"] == [(540, 780), (1080, 1200)]
+        assert "bad" not in windows
+
+    def test_slot_overlapping_block_is_unavailable(self, monkeypatch):
+        from appointments import availability, service
+
+        monkeypatch.setattr(
+            availability,
+            "_get_settings",
+            lambda: (availability.DEFAULT_HOURS, set(), {"2099-02-02": [(540, 780)]}),  # 9:00–13:00 blocked
+        )
+        monkeypatch.setattr(service, "scan_items", lambda *a, **kw: ([], None))
+
+        # A 6h service at 08:00 runs into the 9–13 block → rejected
+        assert service._slot_is_available("2099-02-02", "08:00", duration_minutes=360) is False
+        # 13:00 starts exactly when the block ends → allowed
+        assert service._slot_is_available("2099-02-02", "13:00", duration_minutes=360) is True
+        # A fully blocked-out DATE still rejects everything
+        monkeypatch.setattr(
+            availability, "_get_settings", lambda: (availability.DEFAULT_HOURS, {"2099-02-02"}, {})
+        )
+        assert service._slot_is_available("2099-02-02", "13:00", duration_minutes=60) is False

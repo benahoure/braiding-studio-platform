@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from common.validators import HtmlStrippingModelMixin, https_url, normalize_us_phone
 
@@ -33,6 +33,20 @@ class SocialLinks(BaseModel):
         return https_url(value) if value else value
 
 
+class BlockedSlot(BaseModel):
+    """A partial-day time block — the admin is unavailable date start–end."""
+
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")
+
+    @model_validator(mode="after")
+    def validate_range(self) -> BlockedSlot:
+        if self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
+
+
 class BusinessSettingsPatch(HtmlStrippingModelMixin, BaseModel):
     businessName: str | None = Field(default=None, min_length=2, max_length=120)
     phone: str | None = None
@@ -48,6 +62,11 @@ class BusinessSettingsPatch(HtmlStrippingModelMixin, BaseModel):
     contactImageUrl: str | None = None
     blockedDates: list[str] | None = Field(
         default=None, description="ISO dates (YYYY-MM-DD) the salon is closed for one-off reasons"
+    )
+    blockedSlots: list[BlockedSlot] | None = Field(
+        default=None,
+        max_length=200,
+        description="Partial-day time blocks (date + start–end) when the salon is unavailable",
     )
 
     @field_validator("phone")

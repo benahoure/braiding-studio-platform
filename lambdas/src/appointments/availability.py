@@ -16,15 +16,32 @@ SETTINGS_KEY = {"settingId": "BUSINESS#SETTINGS", "version": "v1"}
 DEFAULT_HOURS = {day: {"open": "09:00", "close": "21:00", "closed": False} for day in DAY_NAMES}
 
 
-def _get_settings() -> tuple[dict, set[str]]:
-    """Return (hours_by_day, blocked_dates_set)."""
+def _get_settings() -> tuple[dict, set[str], dict[str, list[tuple[int, int]]]]:
+    """Return (hours_by_day, blocked_dates_set, blocked_windows_by_date).
+
+    blocked_windows_by_date maps YYYY-MM-DD → [(start_min, end_min), …] from the
+    admin's partial-day time blocks (settings.blockedSlots). They participate in
+    conflict checks exactly like existing appointments, so a long service can't
+    start before a block and run into it.
+    """
     config = get_config()
     settings = get_item(config.table_business_settings, SETTINGS_KEY)
     if not settings:
-        return DEFAULT_HOURS, set()
+        return DEFAULT_HOURS, set(), {}
     hours = settings.get("hours", DEFAULT_HOURS)
     blocked_raw = settings.get("blockedDates") or []
-    return hours, set(blocked_raw)
+    windows: dict[str, list[tuple[int, int]]] = {}
+    for slot in settings.get("blockedSlots") or []:
+        date = slot.get("date")
+        start = slot.get("start")
+        end = slot.get("end")
+        if not (date and start and end):
+            continue
+        start_min = _time_str_to_minutes(str(start))
+        end_min = _time_str_to_minutes(str(end))
+        if end_min > start_min:
+            windows.setdefault(str(date), []).append((start_min, end_min))
+    return hours, set(blocked_raw), windows
 
 
 def _get_service_duration(service_id: str) -> int:
@@ -127,7 +144,7 @@ def _slot_is_within_24hr(slot_str: str, date: dt.date, cutoff: dt.datetime) -> b
 
 def get_month_availability(year: int, month: int, service_id: str | None = None) -> dict:
     config = get_config()
-    hours, blocked_dates = _get_settings()
+    hours, blocked_dates, blocked_windows = _get_settings()
     now_epoch = utc_now_epoch()
     now_chicago = dt.datetime.now(SALON_TZ)
     today_chicago = now_chicago.date()
@@ -162,7 +179,7 @@ def get_month_availability(year: int, month: int, service_id: str | None = None)
             available_count = 0
         else:
             all_slots = _generate_slots(day_hours, duration_minutes)
-            taken_windows = taken_by_date.get(date_str, [])
+            taken_windows = taken_by_date.get(date_str, []) + blocked_windows.get(date_str, [])
 
             available_slots = []
             within_24hr_count = 0
@@ -210,7 +227,7 @@ def get_month_availability(year: int, month: int, service_id: str | None = None)
 
 def get_date_slots(date_str: str, service_id: str | None = None) -> dict:
     config = get_config()
-    hours, blocked_dates = _get_settings()
+    hours, blocked_dates, blocked_windows = _get_settings()
     now_epoch = utc_now_epoch()
     now_chicago = dt.datetime.now(SALON_TZ)
     today_chicago = now_chicago.date()
@@ -240,7 +257,7 @@ def get_date_slots(date_str: str, service_id: str | None = None) -> dict:
         Attr("preferredDate").eq(date_str),
         now_epoch,
     )
-    taken_windows = taken_by_date.get(date_str, [])
+    taken_windows = taken_by_date.get(date_str, []) + blocked_windows.get(date_str, [])
 
     slots_result = []
     for slot_str in all_slots:

@@ -6,8 +6,10 @@ import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 // Ported from braiding-studio-webapp/components/sections/AboutSection.tsx.
 
 export function AboutSection() {
-  const { data: settings } = useBusinessSettings()
-  const portraitUrl = settings?.founderImageUrl || '/images/deb-2.jpg'
+  const { data: settings, isPending: settingsPending } = useBusinessSettings()
+  // No static fallback while settings load — avoids the old photo flashing
+  // before the admin-uploaded one swaps in on refresh.
+  const portraitUrl = settingsPending ? null : settings?.founderImageUrl || '/images/deb-2.jpg'
   return (
     <section id="about" className="py-24 md:py-32" style={{ background: 'var(--cream)' }}>
       <div className="max-w-7xl mx-auto px-6">
@@ -30,11 +32,13 @@ export function AboutSection() {
                 boxShadow: '0 24px 64px rgba(0,0,0,0.14)',
               }}
             >
-              <img
-                src={portraitUrl}
-                alt="Deb — master braider at Braids by Deb, Dallas TX"
-                className="absolute inset-0 h-full w-full object-cover object-top"
-              />
+              {portraitUrl && (
+                <img
+                  src={portraitUrl}
+                  alt="Deb — master braider at Braids by Deb, Dallas TX"
+                  className="absolute inset-0 h-full w-full object-cover object-top"
+                />
+              )}
               {/* Bottom gradient for floating card readability */}
               <div
                 className="absolute inset-x-0 bottom-0 h-24"

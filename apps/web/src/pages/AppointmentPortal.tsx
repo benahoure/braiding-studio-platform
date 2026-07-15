@@ -67,7 +67,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── deposit badge ─────────────────────────────────────────────────────────────
 
 const DEPOSIT_CONFIG: Record<string, { label: string; color: string }> = {
-  paid:                 { label: 'Deposit paid — $30.00',    color: '#166534' },
+  paid:                 { label: 'Deposit paid',             color: '#166534' },
   refund_pending:       { label: 'Refund processing',        color: '#92400e' },
   refunded:             { label: 'Deposit refunded',         color: '#1e40af' },
   forfeited:            { label: 'Deposit forfeited',        color: '#991b1b' },
@@ -75,12 +75,14 @@ const DEPOSIT_CONFIG: Record<string, { label: string; color: string }> = {
   applied_to_balance:   { label: 'Deposit applied to balance', color: '#166534' },
 }
 
-function DepositBadge({ status }: { status: string }) {
+function DepositBadge({ status, amount }: { status: string; amount: number }) {
   const cfg = DEPOSIT_CONFIG[status]
   if (!cfg) return null
+  // The paid badge shows the real deposit amount from the appointment record.
+  const label = status === 'paid' && amount > 0 ? `${cfg.label} — ${formatPrice(amount)}` : cfg.label
   return (
     <span className="text-sm font-semibold" style={{ color: cfg.color }}>
-      {cfg.label}
+      {label}
     </span>
   )
 }
@@ -89,20 +91,29 @@ function DepositBadge({ status }: { status: string }) {
 
 function RescheduleModal({
   token,
-  currentDate,
-  currentTime,
+  serviceId,
+  depositLabel,
   onSuccess,
   onClose,
 }: {
   token: string
-  currentDate: string
-  currentTime: string
+  serviceId?: string
+  depositLabel: string
   onSuccess: () => void
   onClose: () => void
 }) {
-  const [newDate, setNewDate] = useState(currentDate)
-  const [newTime, setNewTime] = useState(currentTime)
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
   const [apiError, setApiError] = useState<string | null>(null)
+
+  // Only real, open slots are offered — the same availability source the
+  // booking flow uses, so the customer can't pick a time that gets rejected.
+  const slotsQuery = useQuery({
+    queryKey: ['portal-availability', serviceId, newDate],
+    queryFn: () => api.getDateSlots({ serviceId, date: newDate }),
+    enabled: Boolean(newDate),
+  })
+  const slots = slotsQuery.data?.slots ?? []
 
   const mutation = useMutation({
     mutationFn: () => api.portalReschedule(token, { preferredDate: newDate, preferredTime: newTime }),
@@ -112,7 +123,12 @@ function RescheduleModal({
     },
   })
 
-  const unchanged = newDate === currentDate && newTime === currentTime
+  // Earliest reschedule date is tomorrow (mirrors the 24-hour rule).
+  const minDate = new Date(Date.now() + 25 * 3600000).toISOString().split('T')[0]
+  const rawTime = (iso: string): string => {
+    const t = iso.split('T')[1]?.split(':') ?? []
+    return `${t[0] ?? '00'}:${t[1] ?? '00'}`
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
@@ -121,7 +137,7 @@ function RescheduleModal({
         <div className="flex items-center justify-between border-b border-cream-border px-6 py-5">
           <div>
             <h2 className="font-display text-lg font-semibold text-espresso">Reschedule Appointment</h2>
-            <p className="mt-0.5 text-xs text-mocha/60">Choose a new date and time</p>
+            <p className="mt-0.5 text-xs text-mocha/60">Pick a new date, then an available time</p>
           </div>
           <button
             type="button"
@@ -135,7 +151,7 @@ function RescheduleModal({
 
         <div className="space-y-4 px-6 py-6">
           <div className="rounded-xl border border-cream-border bg-cream-deep/40 px-4 py-3 text-xs text-mocha/60">
-            Your $30 deposit will automatically transfer to the new date.
+            Your {depositLabel} deposit will automatically transfer to the new date.
           </div>
 
           <div className="field">
@@ -146,24 +162,49 @@ function RescheduleModal({
               id="reschedule-date"
               type="date"
               value={newDate}
-              min={new Date(Date.now() + 25 * 3600000).toISOString().split('T')[0]}
-              onChange={(e) => { setNewDate(e.target.value); setApiError(null) }}
+              min={minDate}
+              onChange={(e) => { setNewDate(e.target.value); setNewTime(''); setApiError(null) }}
               className="mt-2"
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="reschedule-time" className="block text-[0.65rem] font-bold uppercase tracking-[0.08em] text-mocha">
-              New Time
-            </label>
-            <input
-              id="reschedule-time"
-              type="time"
-              value={newTime}
-              onChange={(e) => { setNewTime(e.target.value); setApiError(null) }}
-              className="mt-2"
-            />
-          </div>
+          {/* Available time slots for the chosen date */}
+          {newDate && (
+            <div>
+              <p className="mb-2 block text-[0.65rem] font-bold uppercase tracking-[0.08em] text-mocha">
+                Available Times
+              </p>
+              {slotsQuery.isPending ? (
+                <p className="text-sm text-mocha/50">Checking availability…</p>
+              ) : slots.length === 0 ? (
+                <p className="rounded-lg border border-cream-border bg-cream-deep/40 px-3 py-2.5 text-sm text-mocha/60">
+                  No open times on this date. Please try another day.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {slots.map((slot) => {
+                    const value = rawTime(slot.datetime)
+                    const selected = value === newTime
+                    return (
+                      <button
+                        key={slot.datetime}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => { setNewTime(value); setApiError(null) }}
+                        className={`rounded-full border-2 px-4 py-2 text-sm font-semibold transition-all ${
+                          selected
+                            ? 'border-gold bg-gold text-espresso'
+                            : 'border-cream-border bg-paper text-mocha hover:border-gold/50'
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {apiError && (
             <div className="flex items-start gap-2 rounded-xl border border-error/30 bg-error/8 p-3 text-sm text-error">
@@ -177,7 +218,7 @@ function RescheduleModal({
           <button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || unchanged || !newDate || !newTime}
+            disabled={mutation.isPending || !newDate || !newTime}
             className="btn btn-gold flex-1 disabled:opacity-50"
           >
             {mutation.isPending ? 'Rescheduling…' : 'Confirm Reschedule'}
@@ -241,7 +282,7 @@ function CancelModal({
           {/* Refund info */}
           <div className="rounded-xl border border-cream-border bg-cream-deep/40 px-4 py-4 text-sm text-mocha/80 space-y-2">
             <p className="font-semibold text-espresso">What happens to your deposit?</p>
-            <p>Your $30.00 deposit will be <span className="font-semibold text-espresso">fully refunded</span> to your original payment method. Refunds typically appear within 5–10 business days.</p>
+            <p>Your deposit will be <span className="font-semibold text-espresso">fully refunded</span> to your original payment method. Refunds typically appear within 5–10 business days.</p>
             <p className="text-xs text-mocha/60 mt-2">
               Prefer to transfer your deposit to a future appointment instead?{' '}
               <span className="font-medium text-espresso">Contact us directly</span> — we're happy to help.
@@ -257,7 +298,7 @@ function CancelModal({
               className="mt-0.5 h-4 w-4 shrink-0 accent-[#D4A843]"
             />
             <span className="text-[0.72rem] leading-relaxed text-mocha">
-              I understand this will cancel my appointment and issue a refund of $30.00 to my original payment method.
+              I understand this will cancel my appointment and issue a refund of my deposit to my original payment method.
             </span>
           </label>
 
@@ -389,7 +430,7 @@ export function AppointmentPortal() {
         <Check size={16} className="shrink-0" />
         {actionSuccess === 'rescheduled'
           ? 'Your appointment has been rescheduled. A confirmation has been sent to your email.'
-          : 'Your appointment has been cancelled. A refund of $30.00 will appear on your card within 5–10 business days.'}
+          : 'Your appointment has been cancelled. Your deposit refund will appear on your card within 5–10 business days.'}
       </div>
     )
   }
@@ -406,8 +447,8 @@ export function AppointmentPortal() {
       {showReschedule && (
         <RescheduleModal
           token={token!}
-          currentDate={apt.preferredDate}
-          currentTime={apt.preferredTime}
+          serviceId={apt.serviceId}
+          depositLabel={apt.depositAmount > 0 ? formatPrice(apt.depositAmount) : 'deposit'}
           onSuccess={handleRescheduleSuccess}
           onClose={() => setShowReschedule(false)}
         />
@@ -464,7 +505,7 @@ export function AppointmentPortal() {
                 <Check size={16} className="text-gold-dark" />
                 <p className="text-[0.58rem] font-bold uppercase tracking-wider text-mocha/50">Deposit</p>
                 {apt.depositStatus
-                  ? <DepositBadge status={apt.depositStatus} />
+                  ? <DepositBadge status={apt.depositStatus} amount={apt.depositAmount} />
                   : <p className="text-sm text-mocha/40">—</p>
                 }
               </div>
@@ -585,7 +626,7 @@ function PolicyReminder() {
       <p className="text-[0.58rem] font-bold uppercase tracking-wider text-mocha/50 mb-2">Policy Reminder</p>
       <ul className="space-y-1.5 text-xs text-mocha/70 leading-relaxed">
         <li>• You may reschedule or cancel online more than 24 hours before your appointment.</li>
-        <li>• Your $30 deposit transfers automatically when you reschedule.</li>
+        <li>• Your deposit transfers automatically when you reschedule.</li>
         <li>• Cancellations more than 24 hours in advance receive a full deposit refund.</li>
         <li>• Cancellations within 24 hours may result in forfeiture of your deposit.</li>
         <li>• The remaining balance is due at the time of your appointment.</li>

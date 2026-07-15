@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react'
 import { formatDuration } from '../../lib/format'
 import { resolveServiceImage, resolveServiceImageAlt } from '../../lib/serviceImages'
 import type { SalonService } from '../../types'
-import { BOOKING_CATEGORIES, dollars, groupedStylesFor, sizeLabelFor, type StyleGroup } from './bookingConfig'
+import {
+  BOOKING_CATEGORIES,
+  dollars,
+  groupedStylesFor,
+  priceIsExact,
+  resolvedPriceCents,
+  sizeLabelFor,
+  type StyleGroup,
+} from './bookingConfig'
 
 // Step 1 — choose one service. Real services from the services API; category
 // groups with no bookable services are hidden automatically.
@@ -21,8 +29,10 @@ interface ServiceSelectionStepProps {
   onRetry: () => void
   categoryId: string
   serviceId: string
+  lengthLabel: string
   onCategorySelect: (categoryId: string) => void
   onServiceSelect: (serviceId: string, opts?: { advance?: boolean }) => void
+  onLengthSelect: (lengthLabel: string) => void
   error?: string
 }
 
@@ -94,12 +104,59 @@ function ServiceCard({
   )
 }
 
+/** Length tier pills — shown when the selected service prices by length. */
+function LengthPills({
+  service,
+  lengthLabel,
+  onLengthSelect,
+}: {
+  service: SalonService
+  lengthLabel: string
+  onLengthSelect: (label: string) => void
+}) {
+  if (!service.lengths?.length) return null
+  return (
+    <div>
+      <SectionLabel>Choose Your Length</SectionLabel>
+      <div className="mt-3 flex flex-wrap gap-2.5" role="group" aria-label={`${service.name} lengths`}>
+        {service.lengths.map((option) => {
+          const isSelected = option.label === lengthLabel
+          return (
+            <button
+              key={option.label}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onLengthSelect(option.label)}
+              className={`rounded-full border-2 px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                isSelected
+                  ? 'border-gold bg-gold text-espresso shadow-[0_4px_16px_rgba(191,161,74,0.35)]'
+                  : 'border-cream-border bg-paper text-mocha hover:border-gold/50'
+              }`}
+            >
+              {option.label}
+              <span className={`ml-2 text-[0.7rem] font-medium ${isSelected ? 'text-espresso/70' : 'text-mocha/50'}`}>
+                {dollars(option.price)}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /** Photo preview of the exact selected service — the "be sure" moment. */
-function SelectedPreview({ service }: { service: SalonService }) {
+function SelectedPreview({ service, lengthLabel }: { service: SalonService; lengthLabel: string }) {
+  const price = resolvedPriceCents(service, lengthLabel) ?? service.startingPrice
+  const exact = priceIsExact(service, lengthLabel)
+  const needsLength = Boolean(service.lengths?.length) && !exact
   return (
     <div className="overflow-hidden rounded-2xl border-2 border-gold shadow-[0_8px_32px_rgba(191,161,74,0.22)]">
       <div className="grid sm:grid-cols-[240px_1fr]">
-        <div className="relative aspect-[4/5] max-h-72 overflow-hidden bg-cream-deep sm:max-h-none">
+        {/* Fixed height on mobile, grid-stretched on desktop — deliberately no
+            aspect-ratio: Safari resolves aspect-ratio + max-height by shrinking
+            the width, which left a white band beside the photo. */}
+        <div className="relative h-72 w-full overflow-hidden bg-cream-deep sm:h-auto">
           <img
             src={resolveServiceImage(service)}
             alt={resolveServiceImageAlt(service)}
@@ -115,22 +172,36 @@ function SelectedPreview({ service }: { service: SalonService }) {
             <Check size={10} strokeWidth={3} aria-hidden="true" />
             Your Style
           </span>
-          <p className="font-display text-2xl font-semibold leading-tight text-espresso">{service.name}</p>
+          <p className="font-display text-2xl font-semibold leading-tight text-espresso">
+            {service.name}
+            {exact && lengthLabel && (
+              <span className="mt-1 block text-sm font-medium text-gold-dark">{lengthLabel}</span>
+            )}
+          </p>
           <p className="line-clamp-3 text-xs leading-relaxed text-mocha/70">{service.description}</p>
           <div className="mt-1 flex items-center gap-4">
-            <span className="text-base font-bold text-espresso">From {dollars(service.startingPrice)}</span>
+            <span className="text-base font-bold text-espresso">
+              {exact ? dollars(price) : `From ${dollars(price)}`}
+            </span>
             <span className="inline-flex items-center gap-1 text-xs text-mocha/60">
               <Clock size={12} aria-hidden="true" />
               ~{formatDuration(service.durationMinutes)}
             </span>
           </div>
           <p className="text-[0.68rem] leading-relaxed text-mocha/55">
-            Starting price — the final quote depends on your pattern, length, and hair density.
-            Deb confirms everything with you before your appointment.
+            {exact
+              ? 'Final quote can vary slightly with pattern and hair density — Deb confirms everything with you before your appointment.'
+              : 'Starting price — the final quote depends on your pattern, length, and hair density. Deb confirms everything with you before your appointment.'}
           </p>
-          <p className="mt-1 text-[0.7rem] text-mocha/55">
-            Looks right? Press <span className="font-semibold text-gold-dark">Continue</span> below.
-          </p>
+          {needsLength ? (
+            <p className="mt-1 text-[0.7rem] font-semibold text-gold-dark">
+              Choose a length above to see your exact price.
+            </p>
+          ) : (
+            <p className="mt-1 text-[0.7rem] text-mocha/55">
+              Looks right? Press <span className="font-semibold text-gold-dark">Continue</span> below.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -144,8 +215,10 @@ export function ServiceSelectionStep({
   onRetry,
   categoryId,
   serviceId,
+  lengthLabel,
   onCategorySelect,
   onServiceSelect,
+  onLengthSelect,
   error,
 }: ServiceSelectionStepProps) {
   // Which style family (subcategory) is open — local UI state only; the
@@ -344,25 +417,42 @@ export function ServiceSelectionStep({
             </div>
           )}
 
-          {selectedService && <SelectedPreview service={selectedService} />}
+          {selectedService && (
+            <>
+              <LengthPills service={selectedService} lengthLabel={lengthLabel} onLengthSelect={onLengthSelect} />
+              <SelectedPreview service={selectedService} lengthLabel={lengthLabel} />
+            </>
+          )}
         </>
       )}
 
       {/* ── Flat grid for categories without style families (e.g. Kids) ── */}
       {categoryId && !styleGroups && (
-        <div>
-          <SectionLabel>Choose Your Style</SectionLabel>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            {categoryServices.map((service) => (
-              <ServiceCard
-                key={service.serviceId}
-                service={service}
-                isSelected={service.serviceId === serviceId}
-                onSelect={() => onServiceSelect(service.serviceId, { advance: true })}
-              />
-            ))}
+        <>
+          <div>
+            <SectionLabel>Choose Your Style</SectionLabel>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              {categoryServices.map((service) => (
+                <ServiceCard
+                  key={service.serviceId}
+                  service={service}
+                  isSelected={service.serviceId === serviceId}
+                  // Cards with length pricing must stay on this step to pick a
+                  // length; simple services keep the quick auto-advance.
+                  onSelect={() =>
+                    onServiceSelect(service.serviceId, { advance: !service.lengths?.length })
+                  }
+                />
+              ))}
+            </div>
           </div>
-        </div>
+          {selectedService && selectedService.lengths?.length ? (
+            <>
+              <LengthPills service={selectedService} lengthLabel={lengthLabel} onLengthSelect={onLengthSelect} />
+              <SelectedPreview service={selectedService} lengthLabel={lengthLabel} />
+            </>
+          ) : null}
+        </>
       )}
 
       {error && (

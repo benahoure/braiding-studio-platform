@@ -261,7 +261,25 @@ export function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`
 }
 
-export function remainingBalanceCents(service: SalonService | undefined): number | null {
+/** Exact price when a length is chosen; the service's from-price otherwise. */
+export function resolvedPriceCents(service: SalonService | undefined, lengthLabel?: string): number | null {
   if (!service) return null
-  return Math.max(0, service.startingPrice - DEPOSIT_AMOUNT_CENTS)
+  if (lengthLabel && service.lengths?.length) {
+    const match = service.lengths.find((option) => option.label === lengthLabel)
+    if (match) return match.price
+  }
+  return service.startingPrice
+}
+
+/** True when the price is exact (no lengths, or a length has been chosen). */
+export function priceIsExact(service: SalonService | undefined, lengthLabel?: string): boolean {
+  if (!service) return false
+  if (!service.lengths?.length) return false
+  return Boolean(lengthLabel && service.lengths.some((option) => option.label === lengthLabel))
+}
+
+export function remainingBalanceCents(service: SalonService | undefined, lengthLabel?: string): number | null {
+  const price = resolvedPriceCents(service, lengthLabel)
+  if (price === null) return null
+  return Math.max(0, price - DEPOSIT_AMOUNT_CENTS)
 }
