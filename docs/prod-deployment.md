@@ -158,7 +158,7 @@ repos on the free plan, which is why prod is dispatch-only at the workflow level
 |---|---|---|
 | `apps/web/**` | deploy-frontend | manual `workflow_dispatch` (env `prod`) |
 | `lambdas/**` | deploy-backend (tests + security scan first; Lambdas-only apply) | manual `workflow_dispatch` (env `prod`) |
-| `infra/**` | deploy-infra — **manual dispatch only**, plan artifact reviewed before apply | manual dispatch |
+| `infra/**` | deploy-infra-plan then deploy-infra-apply — **two separate manual dispatches**, always | manual dispatch, twice |
 
 Golden rule: **never ship anything to prod that didn’t run on dev first.**
 

@@ -52,10 +52,13 @@ Set these under **Settings → Environments → [development | production]**.
 
 | Workflow | Trigger | Flow |
 |---|---|---|
-| `deploy-frontend.yml` | push/PR on `apps/web/**` | lint → test → build → deploy dev → (prod on push to main) |
-| `deploy-backend.yml` | push/PR on `lambdas/**` | ruff → mypy → pytest → pip-audit/bandit → `apply -target` Lambdas dev → prod |
-| `deploy-infra.yml` | manual `workflow_dispatch` | `plan` (artifact) → `apply` (gated by environment protection) |
+| `deploy-frontend.yml` | push/PR on `apps/web/**` (dev); manual `workflow_dispatch` (prod) | lint → test → build → deploy. Push to `main` deploys **dev only** — prod is always a separate, deliberate dispatch. |
+| `deploy-backend.yml` | push/PR on `lambdas/**` (dev); manual `workflow_dispatch` (prod) | ruff → mypy → pytest → pip-audit/bandit → `apply -target` Lambdas. Same dev-auto/prod-manual split. |
+| `deploy-infra-plan.yml` | manual `workflow_dispatch` | Builds Lambda zips, runs `terraform plan`, uploads the plan + those exact zips as one artifact. Prints the run ID to apply next. |
+| `deploy-infra-apply.yml` | manual `workflow_dispatch` (takes `plan_run_id`) | Downloads that exact artifact (nothing rebuilt) and runs `terraform apply` against it. |
 
-Infrastructure changes (CloudFront, DynamoDB, Cognito, API GW, etc.) are applied only by
-`deploy-infra.yml` or a manual `terraform apply` — the backend workflow deliberately targets only the
-two Lambda modules so a code push can't silently mutate infrastructure.
+Infrastructure changes (CloudFront, DynamoDB, Cognito, API GW, etc.) are applied only by the two
+`deploy-infra-*` workflows or a manual `terraform apply` — the backend workflow deliberately targets
+only the two Lambda modules so a code push can't silently mutate infrastructure. Plan and Apply are
+**always two separate dispatches**, never chained — Apply never runs on its own, and reviewing the
+plan is a real, deliberate step, not just a pause during one run.
