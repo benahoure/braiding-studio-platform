@@ -60,7 +60,10 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
             "founderImageUrl": settings.get("founderImageUrl"),
             "contactImageUrl": settings.get("contactImageUrl"),
         }
-        return ok(public_fields, cache_control="public, max-age=300")
+        # Short, revalidating cache: settings (hours, photos, days off) must
+        # reflect admin edits within seconds, not the 5 minutes a long cache
+        # would hold a stale founder/contact photo after an upload.
+        return ok(public_fields, cache_control="public, max-age=30, must-revalidate")
     except Exception:
         logger.exception("Failed to fetch business settings")
         return internal_error()

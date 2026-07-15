@@ -69,6 +69,14 @@ export interface BusinessSettings {
   contactImageUrl?: string | null
   /** Specific dates (YYYY-MM-DD) the salon is closed — days off, vacations. */
   blockedDates?: string[]
+  /** Partial-day blocks: the salon is unavailable date start–end (HH:MM). */
+  blockedSlots?: BlockedSlot[]
+}
+
+export interface BlockedSlot {
+  date: string
+  start: string
+  end: string
 }
 
 export interface SalonService {
@@ -88,6 +96,13 @@ export interface SalonService {
   active: boolean
   bookingCount?: number
   displayOrder?: number
+  /** Optional length tiers (e.g. Mid-back / Waist / Butt length) with prices in cents. */
+  lengths?: ServiceLengthOption[]
+}
+
+export interface ServiceLengthOption {
+  label: string
+  price: number
 }
 
 export interface PortfolioItem {
@@ -127,6 +142,7 @@ export interface AppointmentRequest {
   clientPhone: string
   preferredDate: string
   preferredTime: string
+  lengthLabel?: string
   notes?: string
   referralSource?: 'instagram' | 'tiktok' | 'google' | 'yelp' | 'friend' | 'other' | ''
   honeypot: string
@@ -205,7 +221,9 @@ export interface PortalAppointment {
   depositStatus: DepositStatus | null
   depositAmount: number
   remainingBalance: number
+  serviceId?: string
   serviceName: string
+  lengthLabel?: string | null
   servicePrice: number
   preferredDate: string
   preferredTime: string

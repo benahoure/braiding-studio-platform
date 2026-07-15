@@ -28,6 +28,7 @@ interface BookingConfirmationProps {
   hairDetails: HairDetails
   firstVisit: boolean
   inspiration: string
+  lengthLabel: string
 }
 
 export const BookingConfirmation = forwardRef<HTMLElement, BookingConfirmationProps>(
@@ -43,15 +44,17 @@ export const BookingConfirmation = forwardRef<HTMLElement, BookingConfirmationPr
       hairDetails,
       firstVisit,
       inspiration,
+      lengthLabel,
     },
     ref,
   ) {
     const reducedMotion = useReducedMotion()
-    const remaining = remainingBalanceCents(service)
+    const remaining = remainingBalanceCents(service, lengthLabel)
 
     const summaryRows = [
       { label: 'Name', value: clientName },
       { label: 'Service', value: service?.name ?? '' },
+      ...(lengthLabel ? [{ label: 'Length', value: lengthLabel }] : []),
       { label: 'Date', value: formatBookingDate(preferredDate) },
       { label: 'Time', value: formatBookingTime(preferredTime) },
       { label: 'Deposit paid', value: dollars(DEPOSIT_AMOUNT_CENTS) },

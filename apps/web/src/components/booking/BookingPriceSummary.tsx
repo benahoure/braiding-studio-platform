@@ -7,7 +7,9 @@ import {
   dollars,
   formatBookingDate,
   formatBookingTime,
+  priceIsExact,
   remainingBalanceCents,
+  resolvedPriceCents,
 } from './bookingConfig'
 
 // Live booking summary — service, duration, total, and deposit due today.
@@ -15,13 +17,16 @@ import {
 
 interface BookingPriceSummaryProps {
   service: SalonService | undefined
+  lengthLabel?: string
   preferredDate: string
   preferredTime: string
 }
 
-export function BookingPriceSummary({ service, preferredDate, preferredTime }: BookingPriceSummaryProps) {
+export function BookingPriceSummary({ service, lengthLabel, preferredDate, preferredTime }: BookingPriceSummaryProps) {
   if (!service) return null
-  const remaining = remainingBalanceCents(service)
+  const remaining = remainingBalanceCents(service, lengthLabel)
+  const price = resolvedPriceCents(service, lengthLabel) ?? service.startingPrice
+  const exact = priceIsExact(service, lengthLabel)
 
   return (
     <div
@@ -29,7 +34,10 @@ export function BookingPriceSummary({ service, preferredDate, preferredTime }: B
       aria-live="polite"
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-espresso">{service.name}</p>
+        <p className="truncate text-sm font-semibold text-espresso">
+          {service.name}
+          {exact && lengthLabel ? <span className="font-normal text-mocha/60"> · {lengthLabel}</span> : null}
+        </p>
         <p className="flex flex-wrap items-center gap-x-2 text-[0.7rem] text-mocha/60">
           <span className="inline-flex items-center gap-1">
             <Clock size={10} aria-hidden="true" />
@@ -45,7 +53,7 @@ export function BookingPriceSummary({ service, preferredDate, preferredTime }: B
       </div>
       <div className="text-right">
         <p className="text-sm font-bold text-espresso">
-          From {dollars(service.startingPrice)}
+          {exact ? dollars(price) : `From ${dollars(price)}`}
         </p>
         <p className="text-[0.68rem] font-semibold text-gold-dark">
           {dollars(DEPOSIT_AMOUNT_CENTS)} deposit due today

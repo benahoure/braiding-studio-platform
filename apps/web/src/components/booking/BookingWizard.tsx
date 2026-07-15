@@ -103,6 +103,7 @@ export function BookingWizard() {
 
   const buildPayload = (): AppointmentRequest => ({
     serviceId: state.serviceId,
+    lengthLabel: state.lengthLabel || undefined,
     portfolioStyleId: state.portfolioStyleId || undefined,
     clientName: state.clientName.trim(),
     clientEmail: state.clientEmail.trim(),
@@ -213,8 +214,9 @@ export function BookingWizard() {
     if (state.step > 1) dispatch({ type: 'GO_TO_STEP', step: (state.step - 1) as WizardStep })
   }
 
+  const serviceNeedsLength = Boolean(selectedService?.lengths?.length) && !state.lengthLabel
   const nextDisabled =
-    (state.step === 1 && !state.serviceId) ||
+    (state.step === 1 && (!state.serviceId || serviceNeedsLength)) ||
     (state.step === 3 && (!state.preferredDate || !state.preferredTime))
 
   const hasBlockingError = Boolean(state.errors.form)
@@ -234,6 +236,7 @@ export function BookingWizard() {
         hairDetails={state.hairDetails}
         firstVisit={state.firstVisit}
         inspiration={state.inspiration}
+        lengthLabel={state.lengthLabel}
       />
     )
   }
@@ -251,6 +254,7 @@ export function BookingWizard() {
         <div className="px-4 pt-5 sm:px-8">
           <BookingPriceSummary
             service={selectedService}
+            lengthLabel={state.lengthLabel}
             preferredDate={state.preferredDate}
             preferredTime={state.preferredTime}
           />
@@ -304,6 +308,8 @@ export function BookingWizard() {
                 onRetry={() => servicesQuery.refetch()}
                 categoryId={state.categoryId}
                 serviceId={state.serviceId}
+                lengthLabel={state.lengthLabel}
+                onLengthSelect={(lengthLabel) => dispatch({ type: 'SET_LENGTH', lengthLabel })}
                 onCategorySelect={(categoryId) => {
                   const cat = BOOKING_CATEGORIES.find((c) => c.id === categoryId)
                   const clearsService = Boolean(
@@ -373,6 +379,7 @@ export function BookingWizard() {
             {state.step === 5 && (
               <BookingReviewStep
                 service={selectedService}
+                lengthLabel={state.lengthLabel}
                 hairDetails={state.hairDetails}
                 firstVisit={state.firstVisit}
                 preferredDate={state.preferredDate}

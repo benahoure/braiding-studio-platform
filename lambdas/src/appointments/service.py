@@ -65,6 +65,17 @@ def _slot_is_available(
     new_start = int(parts[0]) * 60 + (int(parts[1]) if len(parts) > 1 else 0)
     new_end = new_start + duration_minutes
 
+    # The admin's days off and partial-day time blocks are enforced here too,
+    # so raw API calls can't book through them (the UI already hides them).
+    from appointments.availability import _get_settings as _availability_settings
+
+    _, blocked_dates, blocked_windows = _availability_settings()
+    if preferred_date in blocked_dates:
+        return False
+    for block_start, block_end in blocked_windows.get(preferred_date, []):
+        if new_start < block_end and block_start < new_end:
+            return False
+
     items, _ = scan_items(
         config.table_appointments,
         filter_expression=Attr("preferredDate").eq(preferred_date),
@@ -101,13 +112,21 @@ def _slot_is_available(
 
 
 def _confirmation_email_html(
-    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int, notes: str = ""
+    name: str,
+    service_name: str,
+    date: str,
+    time: str,
+    token: str,
+    service_price_cents: int,
+    notes: str = "",
+    length_label: str = "",
 ) -> str:
     config = get_config()
     portal_url = f"{config.allowed_origin}/appointment/{token}"
     remaining = _remaining_balance_cents(service_price_cents)
     rows: list[tuple[str, str | None]] = [
         ("Service", service_name),
+        ("Length", length_label or None),
         ("Date", _format_date(date)),
         ("Time", _format_time(time)),
         ("Deposit paid", "$20.00"),
@@ -135,18 +154,27 @@ def _confirmation_email_html(
 
 
 def _confirmation_email_text(
-    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int, notes: str = ""
+    name: str,
+    service_name: str,
+    date: str,
+    time: str,
+    token: str,
+    service_price_cents: int,
+    notes: str = "",
+    length_label: str = "",
 ) -> str:
     config = get_config()
     portal_url = f"{config.allowed_origin}/appointment/{token}"
     remaining = _remaining_balance_cents(service_price_cents)
     balance_line = f"Balance due at appointment: ${remaining / 100:.2f}\n" if remaining > 0 else ""
+    length_line = f"Length: {length_label}\n" if length_label else ""
     notes_lines = "".join(f"{label}: {value}\n" for label, value in _note_rows(notes))
     notes_block = f"\nWhat you told us:\n{notes_lines}" if notes_lines else ""
     return (
         f"Hi {name},\n\n"
         "Your appointment is confirmed and your $20 deposit has been received.\n\n"
         f"Service: {service_name}\n"
+        f"{length_line}"
         f"Date: {_format_date(date)}\n"
         f"Time: {_format_time(time)}\n"
         "Deposit paid: $20.00\n"
@@ -180,12 +208,14 @@ def _admin_new_booking_html(
     time: str,
     notes: str = "",
     referral: str = "",
+    length_label: str = "",
 ) -> str:
     config = get_config()
     content = _admin_details_table(
         [
             ("Client", name),
             ("Service", service_name),
+            ("Length", length_label or None),
             ("Date", _format_date(date)),
             ("Time", _format_time(time)),
             ("Email", email),
@@ -225,10 +255,22 @@ def create_payment_intent_hold(
     if not _slot_is_available(date_str, request.preferredTime, duration_minutes=service_duration_minutes):
         raise ValueError("That time slot is no longer available. Please choose a different date or time.")
 
+    # Length pricing: the browser only sends a label — the REAL price always
+    # comes from the service record, so it can't be tampered with client-side.
+    lengths = service.get("lengths") or []
+    length_label = (request.lengthLabel or "").strip()
+    if lengths:
+        match = next((option for option in lengths if option.get("label") == length_label), None)
+        if not match:
+            raise ValueError("Please choose a length for this style.")
+        service_price_cents = int(match["price"])
+    else:
+        length_label = ""
+        service_price_cents = int(service.get("startingPrice", 0))
+
     now = utc_now()
     appointment_id = new_id()
     token = new_appointment_token()
-    service_price_cents = int(service.get("startingPrice", 0))
 
     intent = create_payment_intent(
         DEPOSIT_AMOUNT_CENTS,
@@ -245,6 +287,7 @@ def create_payment_intent_hold(
         "serviceName": service["name"],
         "servicePrice": service_price_cents,
         "serviceDurationMinutes": service_duration_minutes,
+        "lengthLabel": length_label or None,
         "clientName": request.clientName,
         "clientEmail": encrypt_pii(str(request.clientEmail)),
         "clientPhone": encrypt_pii(request.clientPhone),
@@ -308,7 +351,20 @@ def confirm_appointment(appointment_id: str, req: ConfirmAppointmentRequest) -> 
 
     current_status = existing.get("status")
     if current_status in {"confirmed", "pending"}:  # "pending" covers deposits set before this fix
-        return {"status": "already_confirmed"}
+        # Idempotent success. The Stripe webhook races the browser's confirm
+        # call and usually wins — this branch must return the SAME payload as
+        # a fresh confirm (portal link included) or the confirmation screen
+        # loses its "View My Appointment" button. Still verify the caller's
+        # intent belongs to this appointment before handing out the link.
+        intent = retrieve_payment_intent(req.stripePaymentIntentId)
+        if getattr(intent.metadata, "appointmentId", None) != appointment_id:
+            raise ValueError("Payment intent does not match this appointment.")
+        return {
+            "appointmentId": appointment_id,
+            "status": "confirmed",
+            "message": "Your deposit has been paid. Check your email for appointment details.",
+            "portalUrl": f"{config.allowed_origin}/appointment/{existing.get('appointmentToken', '')}",
+        }
     if current_status != "pending_payment":
         raise ValueError(f"Appointment cannot be confirmed (status: {current_status}).")
 
@@ -378,20 +434,26 @@ def confirm_appointment(appointment_id: str, req: ConfirmAppointmentRequest) -> 
     svc_price = int(existing.get("servicePrice", 0))
     booking_notes = existing.get("notes") or ""
     referral = existing.get("referralSource") or ""
+    length_label = existing.get("lengthLabel") or ""
 
     best_effort_send_email(
         to_address=client_email,
         subject="Braids by Deb: Your Appointment is Confirmed",
-        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price, booking_notes),
-        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price, booking_notes),
+        text_body=_confirmation_email_text(
+            name, service_name, date_str, time_str, token, svc_price, booking_notes, length_label
+        ),
+        html_body=_confirmation_email_html(
+            name, service_name, date_str, time_str, token, svc_price, booking_notes, length_label
+        ),
     )
     notify_admin(
         f"New booking: {service_name} on {_format_date(date_str)}",
         f"Client: {name} | {client_email} | {client_phone}"
+        + (f"\nLength: {length_label}" if length_label else "")
         + (f"\nReferral: {referral}" if referral else "")
         + (f"\nNotes: {booking_notes}" if booking_notes else ""),
         html_body=_admin_new_booking_html(
-            name, client_email, client_phone, service_name, date_str, time_str, booking_notes, referral
+            name, client_email, client_phone, service_name, date_str, time_str, booking_notes, referral, length_label
         ),
     )
 
@@ -465,19 +527,25 @@ def confirm_appointment_from_webhook(appointment_id: str, charge_id: str | None,
     svc_price = int(existing.get("servicePrice", 0))
     booking_notes = existing.get("notes") or ""
     referral = existing.get("referralSource") or ""
+    length_label = existing.get("lengthLabel") or ""
 
     best_effort_send_email(
         to_address=client_email,
         subject="Braids by Deb: Your Appointment is Confirmed",
-        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price, booking_notes),
-        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price, booking_notes),
+        text_body=_confirmation_email_text(
+            name, service_name, date_str, time_str, token, svc_price, booking_notes, length_label
+        ),
+        html_body=_confirmation_email_html(
+            name, service_name, date_str, time_str, token, svc_price, booking_notes, length_label
+        ),
     )
     notify_admin(
         f"New booking (webhook): {service_name} on {_format_date(date_str)}",
         f"Client: {name} | {client_email} | {client_phone}"
+        + (f"\nLength: {length_label}" if length_label else "")
         + (f"\nReferral: {referral}" if referral else "")
         + (f"\nNotes: {booking_notes}" if booking_notes else ""),
         html_body=_admin_new_booking_html(
-            name, client_email, client_phone, service_name, date_str, time_str, booking_notes, referral
+            name, client_email, client_phone, service_name, date_str, time_str, booking_notes, referral, length_label
         ),
     )

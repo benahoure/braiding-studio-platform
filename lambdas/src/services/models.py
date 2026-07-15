@@ -16,6 +16,13 @@ ServiceCategory = Literal[
 ]
 
 
+class LengthOption(HtmlStrippingModelMixin, BaseModel):
+    """One length tier of a service, e.g. 'Waist length' at $300."""
+
+    label: str = Field(min_length=2, max_length=40)
+    price: int = Field(gt=0, le=500_000)  # cents
+
+
 class ServiceWrite(HtmlStrippingModelMixin, BaseModel):
     name: str = Field(min_length=2, max_length=100)
     category: ServiceCategory
@@ -23,6 +30,7 @@ class ServiceWrite(HtmlStrippingModelMixin, BaseModel):
     description: str = Field(min_length=10, max_length=500)
     startingPrice: int = Field(gt=0)
     durationMinutes: int = Field(gt=0, le=720)
+    lengths: list[LengthOption] | None = Field(default=None, max_length=6)
     imageUrl: str
     imageAlt: str | None = Field(default=None, max_length=200)
     imagePosition: str | None = Field(default=None, max_length=50)
@@ -42,6 +50,7 @@ class ServicePatch(HtmlStrippingModelMixin, BaseModel):
     description: str | None = Field(default=None, min_length=10, max_length=500)
     startingPrice: int | None = Field(default=None, gt=0)
     durationMinutes: int | None = Field(default=None, gt=0, le=720)
+    lengths: list[LengthOption] | None = Field(default=None, max_length=6)
     imageUrl: str | None = None
     imageAlt: str | None = Field(default=None, max_length=200)
     imagePosition: str | None = Field(default=None, max_length=50)

@@ -8,6 +8,7 @@ export interface BookingState {
   step: WizardStep
   categoryId: string
   serviceId: string
+  lengthLabel: string
   portfolioStyleId: string
   inspiration: string
   hairDetails: HairDetails
@@ -31,6 +32,7 @@ export type BookingAction =
   | { type: 'GO_TO_STEP'; step: WizardStep }
   | { type: 'SELECT_CATEGORY'; categoryId: string; clearsService: boolean }
   | { type: 'SELECT_SERVICE'; serviceId: string }
+  | { type: 'SET_LENGTH'; lengthLabel: string }
   | { type: 'SET_HAIR_DETAIL'; field: string; value: string }
   | { type: 'SET_FIRST_VISIT'; value: boolean }
   | { type: 'SET_DATE'; date: string }
@@ -43,8 +45,12 @@ export type BookingAction =
   | { type: 'SET_ERRORS'; errors: BookingState['errors'] }
   | { type: 'CLEAR_ERROR'; field: string }
 
-export function holdKeyFor(state: Pick<BookingState, 'serviceId' | 'preferredDate' | 'preferredTime'>): string {
-  return `${state.serviceId}|${state.preferredDate}|${state.preferredTime}`
+export function holdKeyFor(
+  state: Pick<BookingState, 'serviceId' | 'lengthLabel' | 'preferredDate' | 'preferredTime'>,
+): string {
+  // lengthLabel is part of the key: the quoted price lives on the hold's
+  // appointment record, so changing length must create a fresh hold.
+  return `${state.serviceId}|${state.lengthLabel}|${state.preferredDate}|${state.preferredTime}`
 }
 
 function todayLocal(): { year: number; month: number } {
@@ -61,6 +67,7 @@ export function initialBookingState(init?: {
     step: 1,
     categoryId: '',
     serviceId: init?.serviceId ?? '',
+    lengthLabel: '',
     portfolioStyleId: init?.portfolioStyleId ?? '',
     inspiration: init?.inspiration ?? '',
     hairDetails: {},
@@ -103,12 +110,22 @@ export function bookingReducer(state: BookingState, action: BookingAction): Book
         serviceId: action.serviceId,
         // A different service can have different availability — clear the
         // chosen time (and any payment hold) but keep the date and generic
-        // hair details, which apply to any braid service.
+        // hair details, which apply to any braid service. Length tiers are
+        // service-specific, so the previous choice is cleared too.
+        lengthLabel: '',
         preferredTime: '',
         hold: null,
         policyAccepted: false,
         errors: {},
       }
+    }
+
+    case 'SET_LENGTH': {
+      if (action.lengthLabel === state.lengthLabel) return state
+      const errors = { ...state.errors }
+      delete errors.lengthLabel
+      // The hold snapshots the quoted price — a new length needs a new hold.
+      return { ...state, lengthLabel: action.lengthLabel, hold: null, policyAccepted: false, errors }
     }
 
     case 'SET_HAIR_DETAIL':

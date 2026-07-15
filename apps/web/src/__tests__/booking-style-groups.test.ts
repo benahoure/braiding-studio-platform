@@ -60,3 +60,46 @@ describe('sizeLabelFor', () => {
     expect(sizeLabelFor(hairstyle)).toBe('Fulani Hairstyle')
   })
 })
+
+describe('length pricing helpers', () => {
+  const svc = {
+    ...mockServices[0],
+    serviceId: 'test-lengths',
+    startingPrice: 20000,
+    lengths: [
+      { label: 'Mid-back', price: 20000 },
+      { label: 'Waist length', price: 30000 },
+      { label: 'Butt length', price: 34000 },
+    ],
+  }
+
+  it('resolves the exact price for a chosen length', async () => {
+    const { resolvedPriceCents, priceIsExact } = await import('../components/booking/bookingConfig')
+    expect(resolvedPriceCents(svc, 'Waist length')).toBe(30000)
+    expect(priceIsExact(svc, 'Waist length')).toBe(true)
+  })
+
+  it('falls back to the from-price when no length chosen', async () => {
+    const { resolvedPriceCents, priceIsExact } = await import('../components/booking/bookingConfig')
+    expect(resolvedPriceCents(svc, '')).toBe(20000)
+    expect(priceIsExact(svc, '')).toBe(false)
+  })
+
+  it('services without lengths are always from-price', async () => {
+    const { resolvedPriceCents, priceIsExact, remainingBalanceCents } = await import(
+      '../components/booking/bookingConfig'
+    )
+    const plain = mockServices.find((s) => s.serviceId === 'cornrows')!
+    expect(resolvedPriceCents(plain, 'Waist length')).toBe(plain.startingPrice)
+    expect(priceIsExact(plain, 'Waist length')).toBe(false)
+    expect(remainingBalanceCents(svc, 'Butt length')).toBe(34000 - 2000)
+  })
+
+  it('hold key changes when the length changes (forces a fresh payment hold)', async () => {
+    const { holdKeyFor } = await import('../components/booking/bookingReducer')
+    const base = { serviceId: 'x', preferredDate: '2026-08-01', preferredTime: '09:00' }
+    expect(holdKeyFor({ ...base, lengthLabel: 'Mid-back' })).not.toBe(
+      holdKeyFor({ ...base, lengthLabel: 'Waist length' }),
+    )
+  })
+})

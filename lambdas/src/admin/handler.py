@@ -734,6 +734,9 @@ def create_service(event: dict, admin_user_id: str) -> dict:
     now = utc_now()
     service_id = new_id()
     item = body.model_dump()
+    # "From $X" is always the cheapest length when length pricing is set.
+    if body.lengths:
+        item["startingPrice"] = min(length.price for length in body.lengths)
     item.update(
         {
             "serviceId": service_id,
@@ -765,6 +768,9 @@ def patch_service(event: dict, admin_user_id: str) -> dict:
         validate_cdn_url(add_image, "services")
     if "active" in set_fields:
         set_fields["activeKey"] = str(set_fields["active"]).lower()
+    if set_fields.get("lengths"):
+        # Keep the "From $X" price honest: always the cheapest length.
+        set_fields["startingPrice"] = min(length["price"] for length in set_fields["lengths"])
     try:
         if set_fields or remove_fields:
             set_fields["updatedAt"] = utc_now()

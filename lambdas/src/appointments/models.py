@@ -45,6 +45,7 @@ class PaymentIntentRequest(HtmlStrippingModelMixin, BaseModel):
     clientPhone: str = Field(min_length=7, max_length=20)
     preferredDate: dt.date
     preferredTime: str = Field(pattern=r"^\d{2}:\d{2}$")
+    lengthLabel: str | None = Field(default=None, max_length=40)
     notes: str = Field(default="", max_length=500)
     referralSource: Literal["instagram", "tiktok", "google", "yelp", "friend", "other", ""] = ""
     policyAccepted: bool

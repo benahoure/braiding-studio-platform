@@ -17,8 +17,10 @@ const STAT_CHIPS = [
 
 export function AboutHero() {
   const reducedMotion = useReducedMotion()
-  const { data: settings } = useBusinessSettings()
-  const portraitUrl = settings?.founderImageUrl || '/images/deb-1.jpg'
+  const { data: settings, isPending: settingsPending } = useBusinessSettings()
+  // Don't render the static fallback while settings load — that briefly
+  // flashes the old photo before the admin-uploaded one swaps in on refresh.
+  const portraitUrl = settingsPending ? null : settings?.founderImageUrl || '/images/deb-1.jpg'
   const frameRef = useRef<HTMLDivElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
@@ -102,11 +104,13 @@ export function AboutHero() {
                 className="relative aspect-[4/5] overflow-hidden rounded-2xl"
                 style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(191,161,74,0.25)' }}
               >
-                <img
-                  src={portraitUrl}
-                  alt="Deb — master braider and founder of Braids by Deb"
-                  className="absolute inset-0 h-full w-full object-cover object-top"
-                />
+                {portraitUrl && (
+                  <img
+                    src={portraitUrl}
+                    alt="Deb — master braider and founder of Braids by Deb"
+                    className="absolute inset-0 h-full w-full object-cover object-top"
+                  />
+                )}
               </div>
 
               {/* Floating stat chips */}

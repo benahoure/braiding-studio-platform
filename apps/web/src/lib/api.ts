@@ -387,7 +387,7 @@ export const api = {
   getAdminServices: () =>
     request<{ services: SalonService[]; nextCursor: string | null }>('/admin/services'),
 
-  updateService: (id: string, body: Partial<Pick<SalonService, 'active' | 'featured' | 'name' | 'startingPrice' | 'durationMinutes' | 'description' | 'category' | 'imageUrl'>> & { subcategory?: ServiceSubcategory | null; imagePosition?: string | null; addImage?: string }) =>
+  updateService: (id: string, body: Partial<Pick<SalonService, 'active' | 'featured' | 'name' | 'startingPrice' | 'durationMinutes' | 'description' | 'category' | 'imageUrl'>> & { subcategory?: ServiceSubcategory | null; imagePosition?: string | null; addImage?: string; lengths?: import('../types').ServiceLengthOption[] | null }) =>
     request<SalonService>(`/admin/services/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),

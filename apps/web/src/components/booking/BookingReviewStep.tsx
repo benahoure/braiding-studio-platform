@@ -11,7 +11,9 @@ import {
   dollars,
   formatBookingDate,
   formatBookingTime,
+  priceIsExact,
   remainingBalanceCents,
+  resolvedPriceCents,
   type HairDetails,
   type WizardStep,
 } from './bookingConfig'
@@ -29,6 +31,7 @@ interface ReviewSection {
 
 interface BookingReviewStepProps {
   service: SalonService | undefined
+  lengthLabel: string
   hairDetails: HairDetails
   firstVisit: boolean
   preferredDate: string
@@ -77,6 +80,7 @@ function SummaryCard({ section, onEdit }: { section: ReviewSection; onEdit: (ste
 
 export function BookingReviewStep({
   service,
+  lengthLabel,
   hairDetails,
   firstVisit,
   preferredDate,
@@ -99,7 +103,9 @@ export function BookingReviewStep({
     label: f.label,
     value: hairDetails[f.id].trim(),
   }))
-  const remaining = remainingBalanceCents(service)
+  const remaining = remainingBalanceCents(service, lengthLabel)
+  const price = resolvedPriceCents(service, lengthLabel)
+  const exact = priceIsExact(service, lengthLabel)
 
   const sections: ReviewSection[] = [
     {
@@ -107,7 +113,8 @@ export function BookingReviewStep({
       step: 1,
       rows: [
         { label: 'Style', value: service?.name ?? '' },
-        { label: 'Price', value: service ? `From ${dollars(service.startingPrice)}` : '' },
+        ...(lengthLabel ? [{ label: 'Length', value: lengthLabel }] : []),
+        { label: 'Price', value: price !== null ? (exact ? dollars(price) : `From ${dollars(price)}`) : '' },
         { label: 'Duration', value: service ? `~${formatDuration(service.durationMinutes)}` : '' },
       ],
     },
@@ -171,8 +178,10 @@ export function BookingReviewStep({
       {/* Totals */}
       <div className="rounded-xl border border-gold/30 bg-gold-pale/15 p-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-mocha/70">Service price</span>
-          <span className="font-semibold text-espresso">{service ? `From ${dollars(service.startingPrice)}` : '—'}</span>
+          <span className="text-mocha/70">Service price{exact && lengthLabel ? ` (${lengthLabel})` : ''}</span>
+          <span className="font-semibold text-espresso">
+            {price !== null ? (exact ? dollars(price) : `From ${dollars(price)}`) : '—'}
+          </span>
         </div>
         <div className="mt-1.5 flex items-center justify-between text-sm">
           <span className="text-mocha/70">Deposit due today</span>

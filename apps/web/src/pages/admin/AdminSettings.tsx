@@ -55,6 +55,9 @@ export function AdminSettings() {
   const [photoSaved, setPhotoSaved] = useState<'founder' | 'contact' | null>(null)
   const [dayOffFrom, setDayOffFrom] = useState('')
   const [dayOffTo, setDayOffTo] = useState('')
+  const [blockDate, setBlockDate] = useState('')
+  const [blockStart, setBlockStart] = useState('')
+  const [blockEnd, setBlockEnd] = useState('')
 
   useEffect(() => {
     if (data) setForm(data)
@@ -84,12 +87,36 @@ export function AdminSettings() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // Past days off are irrelevant — prune them so the list stays tidy.
+    // Past days off / time blocks are irrelevant — prune them so lists stay tidy.
     const today = new Date().toISOString().slice(0, 10)
     mutation.mutate({
       ...form,
       blockedDates: (form.blockedDates ?? []).filter((d) => d >= today),
+      blockedSlots: (form.blockedSlots ?? []).filter((s) => s.date >= today),
     })
+  }
+
+  function addTimeBlock() {
+    if (!blockDate || !blockStart || !blockEnd || blockEnd <= blockStart) return
+    const next = [...(form.blockedSlots ?? []), { date: blockDate, start: blockStart, end: blockEnd }].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start),
+    )
+    set('blockedSlots', next)
+    setBlockDate('')
+    setBlockStart('')
+    setBlockEnd('')
+  }
+
+  function removeTimeBlock(index: number) {
+    set(
+      'blockedSlots',
+      (form.blockedSlots ?? []).filter((_, i) => i !== index),
+    )
+  }
+
+  function formatBlockTime(t: string): string {
+    const [h, m] = t.split(':').map(Number)
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
   }
 
   function addDaysOff() {
@@ -347,6 +374,93 @@ export function AdminSettings() {
             ) : (
               <p className="mt-4 text-xs italic text-mocha/40">No days off scheduled.</p>
             )}
+            {/* Time blocks — partial-day unavailability */}
+            <div className="mt-6 border-t border-cream-border pt-5">
+              <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-cocoa/60">
+                Busy Hours (partial day)
+              </h3>
+              <p className="mb-4 text-xs text-mocha/50">
+                Unavailable for part of a day — a morning appointment, an errand? Block just those
+                hours; the rest of the day stays bookable.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-cocoa" htmlFor="block-date">
+                    Date
+                  </label>
+                  <input
+                    id="block-date"
+                    type="date"
+                    value={blockDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setBlockDate(e.target.value)}
+                    className="rounded-lg border border-cream-border bg-cream px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-cocoa" htmlFor="block-start">
+                    From
+                  </label>
+                  <input
+                    id="block-start"
+                    type="time"
+                    value={blockStart}
+                    onChange={(e) => setBlockStart(e.target.value)}
+                    className="rounded-lg border border-cream-border bg-cream px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-cocoa" htmlFor="block-end">
+                    Until
+                  </label>
+                  <input
+                    id="block-end"
+                    type="time"
+                    value={blockEnd}
+                    onChange={(e) => setBlockEnd(e.target.value)}
+                    className="rounded-lg border border-cream-border bg-cream px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={addTimeBlock}
+                  disabled={!blockDate || !blockStart || !blockEnd || blockEnd <= blockStart}
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+                  style={{ background: '#C87390' }}
+                >
+                  Add
+                </button>
+              </div>
+              {(form.blockedSlots ?? []).length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(form.blockedSlots ?? []).map((slot, i) => (
+                    <span
+                      key={`${slot.date}-${slot.start}-${i}`}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                      style={{ background: 'rgba(251,191,36,0.12)', color: '#FFC98B' }}
+                    >
+                      {new Date(`${slot.date}T12:00:00`).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                      })}{' '}
+                      · {formatBlockTime(slot.start)} – {formatBlockTime(slot.end)}
+                      <button
+                        type="button"
+                        onClick={() => removeTimeBlock(i)}
+                        aria-label={`Unblock ${slot.date} ${slot.start}`}
+                        className="text-sm leading-none transition-opacity hover:opacity-70"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-xs italic text-mocha/40">No busy hours scheduled.</p>
+              )}
+            </div>
+
             <p className="mt-3 text-[0.7rem] text-mocha/50">
               Remember to press <span className="font-semibold">Save Settings</span> below to apply.
             </p>

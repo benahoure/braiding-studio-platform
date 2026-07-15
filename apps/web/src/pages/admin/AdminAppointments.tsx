@@ -429,7 +429,10 @@ function AppointmentCard({
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-sm font-medium text-mocha">{apt.serviceName}</p>
+            <p className="mt-0.5 text-sm font-medium text-mocha">
+              {apt.serviceName}
+              {apt.lengthLabel ? <span className="text-mocha/60"> · {apt.lengthLabel}</span> : null}
+            </p>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-mocha/60">
               {!compact && <span>{apt.preferredDate}</span>}
               <span>{fmtTime(apt.preferredTime)}</span>
@@ -587,7 +590,7 @@ function AppointmentCard({
               {adminAction === 'cancel-refund' && (
                 <AdminActionForm
                   title="Cancel by Salon + Full Refund"
-                  description="This will cancel the appointment and issue a full $30.00 refund to the client's card."
+                  description={`This will cancel the appointment and issue a full ${formatPrice(apt.depositAmount ?? DEPOSIT_AMOUNT_CENTS)} refund to the client's card.`}
                   confirmLabel="Cancel & Refund"
                   confirmColor="#FF9DA6"
                   requireNote={false}
@@ -651,7 +654,7 @@ function AppointmentCard({
               {adminAction === 'refund' && (
                 <AdminActionForm
                   title="Refund Deposit Manually"
-                  description="Issue a full $30.00 refund to the client's original payment method."
+                  description={`Issue a full ${formatPrice(apt.depositAmount ?? DEPOSIT_AMOUNT_CENTS)} refund to the client's original payment method.`}
                   confirmLabel="Issue Refund"
                   confirmColor="#FFC98B"
                   requireNote={false}
