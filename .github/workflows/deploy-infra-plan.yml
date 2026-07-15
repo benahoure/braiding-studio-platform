@@ -1,0 +1,94 @@
+name: Deploy Infra — Plan
+
+# Step 1 of 2 for infrastructure changes. Builds the Lambda packages, runs
+# `terraform plan`, and uploads both the plan file and the exact built Lambda
+# zips as one artifact. Review the plan output below, then run
+# "Deploy Infra — Apply" with the run ID printed in this run's summary.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.14.1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  plan:
+    name: Plan (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    # Required so vars.AWS_ROLE_TO_ASSUME resolves — that variable is set on
+    # the development/production environments, not at the repo level.
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'development' }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Build Lambda packages
+        working-directory: lambdas
+        run: |
+          pip install --quiet --upgrade pip
+          make build
+
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init -backend-config=backend/${{ inputs.environment }}.tfbackend -reconfigure
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: infra
+        run: |
+          terraform plan \
+            -var-file=env/${{ inputs.environment }}.tfvars \
+            -out=tfplan \
+            -detailed-exitcode || echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      # Bundles the plan file with the exact Lambda zips it was computed
+      # against, so Apply reuses these bytes instead of rebuilding (a fresh
+      # rebuild can hash differently and make Terraform reject the plan as
+      # stale, even with identical source code).
+      - name: Upload plan + Lambda artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            infra/tfplan
+            lambdas/dist/public-api.zip
+            lambdas/dist/admin-api.zip
+          retention-days: 7
+
+      - name: Next step
+        if: always()
+        run: |
+          {
+            echo "## Plan complete for \`${{ inputs.environment }}\`"
+            echo ""
+            echo "Review the **Terraform Plan** step output above. If it looks right, apply it:"
+            echo ""
+            echo "**Actions → Deploy Infra — Apply → Run workflow**"
+            echo "- environment: \`${{ inputs.environment }}\`"
+            echo "- plan_run_id: \`${{ github.run_id }}\`"
+            echo ""
+            echo "The plan artifact is retained for 7 days."
+          } >> "$GITHUB_STEP_SUMMARY"

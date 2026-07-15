@@ -164,7 +164,7 @@ Then updates are just pushes to `main`:
 |---|---|---|
 | `apps/web/**` | `deploy-frontend.yml` | lint → test → build → S3 sync → invalidation |
 | `lambdas/**` | `deploy-backend.yml` | ruff/mypy/pytest/audit → `terraform apply -target` (Lambdas only) → SSM cache flush |
-| `infra/**` | `deploy-infra.yml` (**manual** `workflow_dispatch`) | plan (artifact) → gated apply |
+| `infra/**` | `deploy-infra-plan.yml` then `deploy-infra-apply.yml` (both **manual** `workflow_dispatch`, always) | run Plan → review its output → run Apply with the printed `plan_run_id` |
 
 ## Option B: manual updates
 
