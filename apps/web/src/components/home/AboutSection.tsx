@@ -1,9 +1,13 @@
 import { Award, Heart, Leaf } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
+
 // Ported from braiding-studio-webapp/components/sections/AboutSection.tsx.
 
 export function AboutSection() {
+  const { data: settings } = useBusinessSettings()
+  const portraitUrl = settings?.founderImageUrl || '/images/deb-2.jpg'
   return (
     <section id="about" className="py-24 md:py-32" style={{ background: 'var(--cream)' }}>
       <div className="max-w-7xl mx-auto px-6">
@@ -27,7 +31,7 @@ export function AboutSection() {
               }}
             >
               <img
-                src="/images/deb-2.jpg"
+                src={portraitUrl}
                 alt="Deb — master braider at Braids by Deb, Dallas TX"
                 className="absolute inset-0 h-full w-full object-cover object-top"
               />

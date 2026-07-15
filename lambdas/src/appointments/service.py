@@ -101,7 +101,7 @@ def _slot_is_available(
 
 
 def _confirmation_email_html(
-    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int
+    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int, notes: str = ""
 ) -> str:
     config = get_config()
     portal_url = f"{config.allowed_origin}/appointment/{token}"
@@ -114,6 +114,7 @@ def _confirmation_email_html(
     ]
     if remaining > 0:
         rows.append(("Balance due at appointment", f"${remaining / 100:.2f}"))
+    rows.extend(_note_rows(notes))
     content = _details_table(rows)
     return _email_layout(
         preheader=f"Your {service_name} appointment is confirmed. See you soon!",
@@ -125,17 +126,23 @@ def _confirmation_email_html(
         content=content,
         cta_label="View My Appointment",
         cta_url=portal_url,
+        cta_helper=(
+            "Use this link to view, reschedule, or cancel your appointment "
+            "(available more than 24 hours before your appointment)."
+        ),
         show_check=True,
     )
 
 
 def _confirmation_email_text(
-    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int
+    name: str, service_name: str, date: str, time: str, token: str, service_price_cents: int, notes: str = ""
 ) -> str:
     config = get_config()
     portal_url = f"{config.allowed_origin}/appointment/{token}"
     remaining = _remaining_balance_cents(service_price_cents)
     balance_line = f"Balance due at appointment: ${remaining / 100:.2f}\n" if remaining > 0 else ""
+    notes_lines = "".join(f"{label}: {value}\n" for label, value in _note_rows(notes))
+    notes_block = f"\nWhat you told us:\n{notes_lines}" if notes_lines else ""
     return (
         f"Hi {name},\n\n"
         "Your appointment is confirmed and your $20 deposit has been received.\n\n"
@@ -143,7 +150,8 @@ def _confirmation_email_text(
         f"Date: {_format_date(date)}\n"
         f"Time: {_format_time(time)}\n"
         "Deposit paid: $20.00\n"
-        f"{balance_line}\n"
+        f"{balance_line}"
+        f"{notes_block}\n"
         f"View or manage your appointment:\n{portal_url}\n\n"
         "Braids by Deb"
     )
@@ -368,15 +376,15 @@ def confirm_appointment(appointment_id: str, req: ConfirmAppointmentRequest) -> 
     name = existing["clientName"]
     service_name = existing["serviceName"]
     svc_price = int(existing.get("servicePrice", 0))
+    booking_notes = existing.get("notes") or ""
+    referral = existing.get("referralSource") or ""
 
     best_effort_send_email(
         to_address=client_email,
         subject="Braids by Deb: Your Appointment is Confirmed",
-        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price),
-        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price),
+        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price, booking_notes),
+        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price, booking_notes),
     )
-    booking_notes = existing.get("notes") or ""
-    referral = existing.get("referralSource") or ""
     notify_admin(
         f"New booking: {service_name} on {_format_date(date_str)}",
         f"Client: {name} | {client_email} | {client_phone}"
@@ -455,15 +463,21 @@ def confirm_appointment_from_webhook(appointment_id: str, charge_id: str | None,
     client_email = decrypt_pii(existing.get("clientEmail", "")) or ""
     client_phone = decrypt_pii(existing.get("clientPhone", "")) or ""
     svc_price = int(existing.get("servicePrice", 0))
+    booking_notes = existing.get("notes") or ""
+    referral = existing.get("referralSource") or ""
 
     best_effort_send_email(
         to_address=client_email,
         subject="Braids by Deb: Your Appointment is Confirmed",
-        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price),
-        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price),
+        text_body=_confirmation_email_text(name, service_name, date_str, time_str, token, svc_price, booking_notes),
+        html_body=_confirmation_email_html(name, service_name, date_str, time_str, token, svc_price, booking_notes),
     )
     notify_admin(
         f"New booking (webhook): {service_name} on {_format_date(date_str)}",
-        f"Client: {name} | {client_email} | {client_phone}",
-        html_body=_admin_new_booking_html(name, client_email, client_phone, service_name, date_str, time_str),
+        f"Client: {name} | {client_email} | {client_phone}"
+        + (f"\nReferral: {referral}" if referral else "")
+        + (f"\nNotes: {booking_notes}" if booking_notes else ""),
+        html_body=_admin_new_booking_html(
+            name, client_email, client_phone, service_name, date_str, time_str, booking_notes, referral
+        ),
     )

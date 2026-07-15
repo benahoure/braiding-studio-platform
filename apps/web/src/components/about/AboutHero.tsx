@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 
 // About hero — split layout: editorial copy left, a 3D mouse-tilt portrait of
@@ -16,6 +17,8 @@ const STAT_CHIPS = [
 
 export function AboutHero() {
   const reducedMotion = useReducedMotion()
+  const { data: settings } = useBusinessSettings()
+  const portraitUrl = settings?.founderImageUrl || '/images/deb-1.jpg'
   const frameRef = useRef<HTMLDivElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
@@ -100,7 +103,7 @@ export function AboutHero() {
                 style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(191,161,74,0.25)' }}
               >
                 <img
-                  src="/images/deb-1.jpg"
+                  src={portraitUrl}
                   alt="Deb — master braider and founder of Braids by Deb"
                   className="absolute inset-0 h-full w-full object-cover object-top"
                 />

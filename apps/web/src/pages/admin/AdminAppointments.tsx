@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, ChevronDown, List } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { DEPOSIT_AMOUNT_CENTS } from '../../components/booking/bookingConfig'
 import { PageMeta } from '../../components/seo/PageMeta'
 import { ApiRequestError, api } from '../../lib/api'
 import { formatPhone, formatPrice, shortDate } from '../../lib/format'
@@ -666,7 +667,7 @@ function AppointmentCard({
               {adminAction === 'late-cancel' && (
                 <AdminActionForm
                   title="Mark Late Cancel + Forfeit Deposit"
-                  description="Records this as a late cancellation. The $30.00 deposit will be forfeited."
+                  description={`Records this as a late cancellation. The ${formatPrice(apt.depositAmount ?? DEPOSIT_AMOUNT_CENTS)} deposit will be forfeited.`}
                   confirmLabel="Mark Late Cancel + Forfeit"
                   confirmColor="#FF9DA6"
                   requireNote={false}
@@ -683,7 +684,7 @@ function AppointmentCard({
               {adminAction === 'no-show' && (
                 <AdminActionForm
                   title="Mark No-Show + Forfeit Deposit"
-                  description="Records this as a no-show. The $30.00 deposit will be forfeited."
+                  description={`Records this as a no-show. The ${formatPrice(apt.depositAmount ?? DEPOSIT_AMOUNT_CENTS)} deposit will be forfeited.`}
                   confirmLabel="Mark No-Show + Forfeit"
                   confirmColor="#FF9DA6"
                   requireNote={false}

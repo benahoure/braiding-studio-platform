@@ -75,7 +75,11 @@
 .admin-theme .text-mocha\/80 { color: rgba(255, 228, 240, 0.82); }
 
 .admin-theme .text-error { color: #ff9da6; }
+.admin-theme .text-error\/50 { color: rgba(255, 157, 166, 0.5); }
+.admin-theme .text-error\/60 { color: rgba(255, 157, 166, 0.6); }
+.admin-theme .text-error\/80 { color: rgba(255, 157, 166, 0.8); }
 .admin-theme .text-gold-light { color: #f5a8c2; }
+.admin-theme .text-gold-light\/70 { color: rgba(245, 168, 194, 0.7); }
 .admin-theme .text-gold-dark { color: #f0a9c4; }
 
 .admin-theme h1,

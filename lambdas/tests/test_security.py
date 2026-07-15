@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def test_redact_pii_masks_email_and_phone_fields() -> None:
     from common.logger import redact_pii
@@ -71,3 +73,53 @@ def test_decode_cursor_rejects_non_dict_payload() -> None:
 
     with pytest.raises(ValueError, match="Invalid pagination cursor"):
         decode_cursor(cursor.decode("utf-8"))
+
+
+class TestValidateCdnUrl:
+    """Regression: every seeded catalog photo lives under the flat /images/
+    path, but validate_cdn_url only accepted /services/ and /uploads/services/
+    — so re-saving ANY field on ANY of the original 20 services failed, since
+    the edit form always resends the existing (unchanged) imageUrl. Found via
+    a real "Failed to update service" report on production."""
+
+    def _base_url(self, monkeypatch):
+        from common.config import get_config
+
+        get_config.cache_clear()
+        monkeypatch.setenv("CDN_BASE_URL", "https://cdn.braidsbydeb.com")
+        return "https://cdn.braidsbydeb.com"
+
+    def test_accepts_legacy_flat_images_path(self, monkeypatch):
+        from common.security import validate_cdn_url
+
+        base = self._base_url(monkeypatch)
+        url = f"{base}/images/small-box-braids.png"
+        assert validate_cdn_url(url, "services") == url
+
+    def test_accepts_services_prefix(self, monkeypatch):
+        from common.security import validate_cdn_url
+
+        base = self._base_url(monkeypatch)
+        url = f"{base}/services/photo.jpg"
+        assert validate_cdn_url(url, "services") == url
+
+    def test_accepts_uploads_services_prefix(self, monkeypatch):
+        from common.security import validate_cdn_url
+
+        base = self._base_url(monkeypatch)
+        url = f"{base}/uploads/services/abc123/photo.jpg"
+        assert validate_cdn_url(url, "services") == url
+
+    def test_rejects_offcdn_url(self, monkeypatch):
+        from common.security import validate_cdn_url
+
+        self._base_url(monkeypatch)
+        with pytest.raises(ValueError, match="CDN URL"):
+            validate_cdn_url("https://evil.example.com/images/x.jpg", "services")
+
+    def test_rejects_unrelated_cdn_subpath(self, monkeypatch):
+        from common.security import validate_cdn_url
+
+        base = self._base_url(monkeypatch)
+        with pytest.raises(ValueError, match="CDN URL"):
+            validate_cdn_url(f"{base}/portfolio/x.jpg", "services")

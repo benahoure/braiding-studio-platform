@@ -77,7 +77,12 @@ export function AdminServices() {
         )}
 
         {mutationError && (
-          <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-error">{mutationError}</p>
+          <p
+            className="rounded-lg px-4 py-2 text-sm"
+            style={{ background: 'rgba(239,68,68,0.12)', color: '#FF9DA6' }}
+          >
+            {mutationError}
+          </p>
         )}
 
         {!isPending && !isError && (
@@ -390,7 +395,7 @@ function ServiceDrawer({
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div
         className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col overflow-y-auto shadow-2xl"
-        style={{ background: '#FFF2F8' }}
+        style={{ background: '#1C0D17' }}
       >
         {/* Header */}
         <div
@@ -626,7 +631,12 @@ function ServiceDrawer({
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-error">{error}</p>
+            <p
+              className="rounded-lg px-4 py-2.5 text-sm"
+              style={{ background: 'rgba(239,68,68,0.12)', color: '#FF9DA6' }}
+            >
+              {error}
+            </p>
           )}
 
           <div className="mt-auto flex gap-3 pt-2">
