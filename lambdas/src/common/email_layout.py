@@ -91,6 +91,7 @@ def email_layout(
     content: str,
     cta_label: str | None = None,
     cta_url: str | None = None,
+    cta_helper: str | None = None,
     show_check: bool = False,
     accent_color: str = _GOLD,
     cta_text_color: str = _TEXT_DARK,
@@ -116,6 +117,13 @@ def email_layout(
 
     cta_html = ""
     if cta_label and cta_url:
+        helper_html = ""
+        if cta_helper:
+            helper_html = f"""
+              <p style="margin: 14px 0 0 0; font-family: Arial, sans-serif; font-size: 11px;
+                line-height: 1.5; color: {_TEXT_MUTED}; text-align: center;">
+                {escape(cta_helper)}
+              </p>"""
         cta_html = f"""
           <tr>
             <td align="center" style="padding: 8px 40px 38px 40px;">
@@ -132,10 +140,11 @@ def email_layout(
                   </td>
                 </tr>
               </table>
-              <p style="margin: 14px 0 0 0; font-family: Arial, sans-serif; font-size: 11px;
-                line-height: 1.5; color: {_TEXT_MUTED}; text-align: center;">
-                Use this link to view, reschedule, or cancel your appointment
-                (available more than 24 hours before your appointment).
+              {helper_html}
+              <p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 10px;
+                line-height: 1.6; color: {_TEXT_MUTED}; text-align: center; word-break: break-all;">
+                Button not working? Open this link:<br>
+                <a href="{escape(cta_url)}" target="_blank" style="color: {_GOLD_DARK};">{escape(cta_url)}</a>
               </p>
             </td>
           </tr>"""

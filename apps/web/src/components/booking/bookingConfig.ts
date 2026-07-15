@@ -1,3 +1,4 @@
+import { SERVICE_CATEGORIES } from '../../lib/serviceCategories'
 import type { AvailabilitySlot, SalonService, ServiceCategory } from '../../types'
 
 // ── Wizard steps ───────────────────────────────────────────────────────────
@@ -48,6 +49,83 @@ export const BOOKING_CATEGORIES: BookingCategoryDef[] = [
     serviceCategories: ['kids'],
   },
 ]
+
+// ── Style-first browsing (step 1) ─────────────────────────────────────────
+// Groups a category's services by subcategory so customers narrow down
+// naturally: category → style family (Boho, Box…) → size (Small/Medium/Large).
+// Purely a presentation regrouping of the same services — no data changes.
+
+export interface StyleGroup {
+  id: string
+  label: string
+  services: SalonService[]
+}
+
+const SIZE_WORDS = ['Small', 'Medium', 'Large', 'Jumbo']
+
+/** "Small Boho Braids" → "Small"; names without a size word stay whole. */
+export function sizeLabelFor(service: SalonService): string {
+  const first = service.name.trim().split(/\s+/)[0]
+  return SIZE_WORDS.includes(first) ? first : service.name
+}
+
+function sizeRank(service: SalonService): number {
+  const idx = SIZE_WORDS.indexOf(service.name.trim().split(/\s+/)[0])
+  return idx === -1 ? SIZE_WORDS.length : idx
+}
+
+function subcategoryLabel(value: string): string {
+  for (const cat of SERVICE_CATEGORIES) {
+    const hit = cat.subcategories.find((s) => s.value === value)
+    if (hit) return hit.label
+  }
+  return value
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+/**
+ * Style groups for a booking category, or `null` when grouped browsing adds
+ * nothing (e.g. Kids, where every service stands alone) — callers fall back
+ * to the flat service-card grid.
+ */
+export function groupedStylesFor(
+  categoryDef: BookingCategoryDef,
+  services: SalonService[],
+): StyleGroup[] | null {
+  const actives = services
+    .filter((s) => s.active && categoryDef.serviceCategories.includes(s.category))
+    .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999))
+
+  const groups = new Map<string, StyleGroup>()
+  for (const s of actives) {
+    const key = s.subcategory || `service:${s.serviceId}`
+    const existing = groups.get(key)
+    if (existing) {
+      existing.services.push(s)
+    } else {
+      groups.set(key, {
+        id: key,
+        label: s.subcategory ? subcategoryLabel(s.subcategory) : s.name,
+        services: [s],
+      })
+    }
+  }
+  // Grouping only helps when it actually condenses the list.
+  if (groups.size < 2 || groups.size >= actives.length) return null
+
+  const taxonomyOrder = SERVICE_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.value))
+  const ordered = [...groups.values()].sort((a, b) => {
+    const ai = taxonomyOrder.indexOf(a.id)
+    const bi = taxonomyOrder.indexOf(b.id)
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+  })
+  for (const group of ordered) {
+    group.services.sort((a, b) => sizeRank(a) - sizeRank(b) || (a.displayOrder ?? 999) - (b.displayOrder ?? 999))
+  }
+  return ordered
+}
 
 // Maps gallery/portfolio style ids to the service that best matches the look,
 // so "book this style" lands on the right service. Mirrors mockData/seed styles.
@@ -110,16 +188,9 @@ export const HAIR_DETAIL_FIELDS: HairDetailFieldDef[] = [
     type: 'select',
     options: [
       'I will bring my own braiding hair',
-      'Please include braiding hair',
       'Not sure yet',
     ],
-    helper: 'Deb confirms hair details with you before your appointment.',
-    optionNotes: {
-      'Please include braiding hair': {
-        tone: 'info',
-        text: 'Tell us your preferred hair brand (and color) in Special Requests below — the braiding hair will be purchased for you at an additional cost.',
-      },
-    },
+    helper: 'Braids by Deb does not sell or supply braiding hair — please bring your own to your appointment (available at most beauty supply stores).',
   },
   {
     id: 'takeDown',

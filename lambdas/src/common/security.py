@@ -59,15 +59,17 @@ def decrypt_pii(value: str | None) -> str | None:
 
 
 def validate_cdn_url(value: str, prefix: str) -> str:
-    """Accept CDN URLs under either the legacy direct prefix or the uploads/ prefix."""
+    """Accept CDN URLs under the legacy flat /images/ path (where every seeded
+    catalog photo lives), the direct prefix, or the uploads/ prefix."""
     config = get_config()
     clean = prefix.strip("/")
     allowed = [
+        f"{config.cdn_base_url}/images/",
         f"{config.cdn_base_url}/{clean}/",
         f"{config.cdn_base_url}/uploads/{clean}/",
     ]
     if not any(value.startswith(p) for p in allowed):
-        raise ValueError(f"Image URL must be a CDN URL under /{clean}/ or /uploads/{clean}/")
+        raise ValueError(f"Image URL must be a CDN URL under /images/, /{clean}/, or /uploads/{clean}/")
     return value
 
 

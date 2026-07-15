@@ -174,16 +174,25 @@ function ReviewCard({
             <p className="font-semibold text-espresso">{review.clientName}</p>
             <StarRating rating={review.rating} />
             {review.approved ? (
-              <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+              <span
+                className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                style={{ background: 'rgba(34,197,94,0.12)', color: '#8CE8AC' }}
+              >
                 Approved
               </span>
             ) : (
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+              <span
+                className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                style={{ background: 'rgba(251,191,36,0.12)', color: '#FFC98B' }}
+              >
                 Pending
               </span>
             )}
             {review.featured && (
-              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+              <span
+                className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                style={{ background: 'rgba(59,130,246,0.12)', color: '#A7BEFF' }}
+              >
                 Featured
               </span>
             )}

@@ -390,6 +390,10 @@ def _send_reschedule_confirmation(
         content=content,
         cta_label="View My Appointment",
         cta_url=portal_url,
+        cta_helper=(
+            "Use this link to view, reschedule, or cancel your appointment "
+            "(available more than 24 hours before your appointment)."
+        ),
         accent_color=ACCENT_RESCHEDULED,
         cta_text_color="#FFFFFF",
     )

@@ -52,6 +52,9 @@ export function AdminSettings() {
 
   const [form, setForm] = useState<BusinessSettings>(settings)
   const [saved, setSaved] = useState(false)
+  const [photoSaved, setPhotoSaved] = useState<'founder' | 'contact' | null>(null)
+  const [dayOffFrom, setDayOffFrom] = useState('')
+  const [dayOffTo, setDayOffTo] = useState('')
 
   useEffect(() => {
     if (data) setForm(data)
@@ -81,7 +84,39 @@ export function AdminSettings() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    mutation.mutate(form)
+    // Past days off are irrelevant — prune them so the list stays tidy.
+    const today = new Date().toISOString().slice(0, 10)
+    mutation.mutate({
+      ...form,
+      blockedDates: (form.blockedDates ?? []).filter((d) => d >= today),
+    })
+  }
+
+  function addDaysOff() {
+    if (!dayOffFrom) return
+    const from = dayOffFrom
+    const to = dayOffTo && dayOffTo > from ? dayOffTo : from
+    const dates: string[] = []
+    // Walk the range in UTC to avoid DST surprises (max ~60 days as a guard).
+    const cursor = new Date(`${from}T00:00:00Z`)
+    const end = new Date(`${to}T00:00:00Z`)
+    let guard = 0
+    while (cursor <= end && guard < 60) {
+      dates.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+      guard++
+    }
+    const merged = Array.from(new Set([...(form.blockedDates ?? []), ...dates])).sort()
+    set('blockedDates', merged)
+    setDayOffFrom('')
+    setDayOffTo('')
+  }
+
+  function removeDayOff(date: string) {
+    set(
+      'blockedDates',
+      (form.blockedDates ?? []).filter((d) => d !== date),
+    )
   }
 
   if (isPending) {
@@ -104,7 +139,7 @@ export function AdminSettings() {
         intro="Edit business details that appear on the public site."
         action={
           saved ? (
-            <span className="text-sm font-semibold text-green-700">Saved!</span>
+            <span className="text-sm font-semibold" style={{ color: '#8CE8AC' }}>Saved!</span>
           ) : undefined
         }
       >
@@ -239,6 +274,84 @@ export function AdminSettings() {
             </div>
           </section>
 
+          {/* Days Off — specific dates, unlike the weekly Hours schedule */}
+          <section className="rounded-xl border border-cream-border bg-paper p-6 shadow-soft">
+            <h2 className="mb-1 text-xs font-bold uppercase tracking-widest text-cocoa/60">Days Off</h2>
+            <p className="mb-4 text-xs text-mocha/50">
+              Block specific dates (a vacation, an appointment, a holiday) without touching your
+              weekly hours. Customers can&rsquo;t book these days. Use the weekly Hours above only
+              for your regular schedule.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-cocoa" htmlFor="dayoff-from">
+                  Date (or start of range)
+                </label>
+                <input
+                  id="dayoff-from"
+                  type="date"
+                  value={dayOffFrom}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setDayOffFrom(e.target.value)}
+                  className="rounded-lg border border-cream-border bg-cream px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-cocoa" htmlFor="dayoff-to">
+                  Until (optional)
+                </label>
+                <input
+                  id="dayoff-to"
+                  type="date"
+                  value={dayOffTo}
+                  min={dayOffFrom || new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setDayOffTo(e.target.value)}
+                  className="rounded-lg border border-cream-border bg-cream px-3 py-2 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={addDaysOff}
+                disabled={!dayOffFrom}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+                style={{ background: '#C87390' }}
+              >
+                Add
+              </button>
+            </div>
+            {(form.blockedDates ?? []).length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {(form.blockedDates ?? []).map((date) => (
+                  <span
+                    key={date}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ background: 'rgba(239,68,68,0.12)', color: '#FF9DA6' }}
+                  >
+                    {new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => removeDayOff(date)}
+                      aria-label={`Unblock ${date}`}
+                      className="text-sm leading-none transition-opacity hover:opacity-70"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-xs italic text-mocha/40">No days off scheduled.</p>
+            )}
+            <p className="mt-3 text-[0.7rem] text-mocha/50">
+              Remember to press <span className="font-semibold">Save Settings</span> below to apply.
+            </p>
+          </section>
+
           {/* Social & Links */}
           <section className="rounded-xl border border-cream-border bg-paper p-6 shadow-soft">
             <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-cocoa/60">Social & Links</h2>
@@ -313,8 +426,9 @@ export function AdminSettings() {
               type="submit"
               disabled={mutation.isPending}
               className="btn btn-gold disabled:opacity-50"
+              style={saved ? { background: '#22C55E', color: '#0B2914' } : undefined}
             >
-              {mutation.isPending ? 'Saving…' : 'Save Settings'}
+              {mutation.isPending ? 'Saving…' : saved ? '✓ Saved — changes are live' : 'Save Settings'}
             </button>
             {mutation.isError && (
               <p className="text-sm text-error">Failed to save. Please try again.</p>
@@ -349,8 +463,23 @@ export function AdminSettings() {
                   aspectRatio={4 / 5}
                   label="Upload founder photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
-                  onUploaded={(url) => photoMutation.mutate({ founderImageUrl: url })}
+                  onUploaded={(url) =>
+                    photoMutation.mutate(
+                      { founderImageUrl: url },
+                      {
+                        onSuccess: () => {
+                          setPhotoSaved('founder')
+                          setTimeout(() => setPhotoSaved(null), 4000)
+                        },
+                      },
+                    )
+                  }
                 />
+                {photoSaved === 'founder' && (
+                  <p className="mt-2 text-xs font-semibold" style={{ color: '#8CE8AC' }}>
+                    ✓ Photo saved — it&rsquo;s now live on the About and Home pages.
+                  </p>
+                )}
                 {photoMutation.isError && (
                   <p className="mt-1 text-xs text-error">Failed to save photo. Please try again.</p>
                 )}
@@ -375,8 +504,23 @@ export function AdminSettings() {
                   aspectRatio={3 / 4}
                   label="Upload contact photo"
                   hint="3:4 portrait · JPG or WebP · max 10 MB"
-                  onUploaded={(url) => photoMutation.mutate({ contactImageUrl: url })}
+                  onUploaded={(url) =>
+                    photoMutation.mutate(
+                      { contactImageUrl: url },
+                      {
+                        onSuccess: () => {
+                          setPhotoSaved('contact')
+                          setTimeout(() => setPhotoSaved(null), 4000)
+                        },
+                      },
+                    )
+                  }
                 />
+                {photoSaved === 'contact' && (
+                  <p className="mt-2 text-xs font-semibold" style={{ color: '#8CE8AC' }}>
+                    ✓ Photo saved — it&rsquo;s now live on the Contact page.
+                  </p>
+                )}
                 {photoMutation.isError && (
                   <p className="mt-1 text-xs text-error">Failed to save photo. Please try again.</p>
                 )}

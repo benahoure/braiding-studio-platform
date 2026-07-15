@@ -67,6 +67,8 @@ export interface BusinessSettings {
   bookingNotice: string
   founderImageUrl?: string | null
   contactImageUrl?: string | null
+  /** Specific dates (YYYY-MM-DD) the salon is closed — days off, vacations. */
+  blockedDates?: string[]
 }
 
 export interface SalonService {
@@ -85,6 +87,7 @@ export interface SalonService {
   featured: boolean
   active: boolean
   bookingCount?: number
+  displayOrder?: number
 }
 
 export interface PortfolioItem {

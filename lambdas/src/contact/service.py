@@ -51,7 +51,7 @@ def _admin_contact_html(
         intro="A new message was submitted through the Braids by Deb contact form.",
         content=content,
         cta_label="Open Admin Dashboard",
-        cta_url=f"{get_config().allowed_origin}/admin/contacts",
+        cta_url=f"{get_config().allowed_origin}/admin/messages",
     )
 
 

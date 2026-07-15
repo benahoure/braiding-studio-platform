@@ -7,10 +7,12 @@ import { useReducedMotion } from '../../hooks/useReducedMotion'
 import type { SalonService } from '../../types'
 import {
   DEPOSIT_AMOUNT_CENTS,
+  HAIR_DETAIL_FIELDS,
   dollars,
   formatBookingDate,
   formatBookingTime,
   remainingBalanceCents,
+  type HairDetails,
 } from './bookingConfig'
 
 // Step 6 — shown only after the backend has confirmed the booking.
@@ -23,11 +25,25 @@ interface BookingConfirmationProps {
   preferredTime: string
   appointmentId: string
   portalUrl: string | null
+  hairDetails: HairDetails
+  firstVisit: boolean
+  inspiration: string
 }
 
 export const BookingConfirmation = forwardRef<HTMLElement, BookingConfirmationProps>(
   function BookingConfirmation(
-    { clientName, clientEmail, service, preferredDate, preferredTime, appointmentId, portalUrl },
+    {
+      clientName,
+      clientEmail,
+      service,
+      preferredDate,
+      preferredTime,
+      appointmentId,
+      portalUrl,
+      hairDetails,
+      firstVisit,
+      inspiration,
+    },
     ref,
   ) {
     const reducedMotion = useReducedMotion()
@@ -44,6 +60,17 @@ export const BookingConfirmation = forwardRef<HTMLElement, BookingConfirmationPr
         : []),
       ...(appointmentId ? [{ label: 'Confirmation #', value: appointmentId }] : []),
     ].filter((row) => row.value)
+
+    // What the client told us — same info Deb sees, shown back for their own
+    // record so there's no doubt about what was submitted.
+    const noteRows = [
+      ...(inspiration ? [{ label: 'Inspiration', value: inspiration.replace('Portfolio inspiration: ', '') }] : []),
+      ...HAIR_DETAIL_FIELDS.filter((f) => hairDetails[f.id]?.trim()).map((f) => ({
+        label: f.label,
+        value: hairDetails[f.id].trim(),
+      })),
+      ...(firstVisit ? [{ label: 'First visit', value: 'Yes' }] : []),
+    ]
 
     return (
       <motion.section
@@ -86,6 +113,22 @@ export const BookingConfirmation = forwardRef<HTMLElement, BookingConfirmationPr
               </div>
             ))}
           </dl>
+
+          {noteRows.length > 0 && (
+            <div className="mt-5 rounded-xl border border-cream-border bg-cream p-4">
+              <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-mocha">
+                What You Told Us
+              </p>
+              <dl className="grid gap-1.5">
+                {noteRows.map(({ label, value }) => (
+                  <div key={label} className="flex items-start justify-between gap-4 text-sm">
+                    <dt className="shrink-0 text-mocha/55">{label}</dt>
+                    <dd className="text-right font-medium text-espresso">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
             {portalUrl && (

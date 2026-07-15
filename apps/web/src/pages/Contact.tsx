@@ -234,6 +234,19 @@ export function Contact() {
 
             {/* Aside — studio address + hours (everything else lives in the hero) */}
             <aside className="card-luxury p-7" style={{ transform: 'none' }}>
+              {settings.contactImageUrl && (
+                <div
+                  className="mb-5 overflow-hidden"
+                  style={{ aspectRatio: '3/4', borderRadius: '14px', maxWidth: '100%' }}
+                >
+                  <img
+                    src={settings.contactImageUrl}
+                    alt="The Braids by Deb studio"
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              )}
               <p className="section-label mb-4">Studio &amp; Hours</p>
               <p style={{ fontSize: '0.92rem', color: 'var(--charcoal)', lineHeight: 1.6 }}>
                 {settings.address.street}

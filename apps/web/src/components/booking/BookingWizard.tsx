@@ -231,6 +231,9 @@ export function BookingWizard() {
         preferredTime={state.preferredTime}
         appointmentId={confirmedWith.appointmentId}
         portalUrl={confirmedWith.portalUrl}
+        hairDetails={state.hairDetails}
+        firstVisit={state.firstVisit}
+        inspiration={state.inspiration}
       />
     )
   }
@@ -308,11 +311,14 @@ export function BookingWizard() {
                   )
                   dispatch({ type: 'SELECT_CATEGORY', categoryId, clearsService })
                 }}
-                onServiceSelect={(serviceId) => {
+                onServiceSelect={(serviceId, opts) => {
                   dispatch({ type: 'SELECT_SERVICE', serviceId })
-                  // Auto-advance: picking a style IS the step-1 decision, so
-                  // move on after a beat (long enough to see the selection).
-                  window.setTimeout(() => goToStep(2), reducedMotion ? 80 : 300)
+                  // Flat-grid categories auto-advance (the card already shows
+                  // the photo). Size-pill selections stay put so the customer
+                  // can confirm the photo preview, then press Continue.
+                  if (serviceId && opts?.advance) {
+                    window.setTimeout(() => goToStep(2), reducedMotion ? 80 : 300)
+                  }
                 }}
                 error={state.errors.serviceId}
               />
