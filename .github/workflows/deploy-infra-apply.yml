@@ -62,14 +62,10 @@ jobs:
       - name: Terraform Apply
         working-directory: infra
         run: terraform apply tfplan
-
-      - name: Flush Lambda SSM cache
-        run: |
-          for fn in \
-            braidsbydeb-${{ inputs.environment }}-public-api \
-            braidsbydeb-${{ inputs.environment }}-admin-api; do
-            aws lambda update-function-configuration \
-              --function-name "$fn" \
-              --description "cache-flush-${{ github.run_id }}" \
-              --no-cli-pager || true
-          done
+        # No post-apply SSM cache flush here on purpose: forcing a cold start
+        # is a code-deploy/secret-rotation concern (already handled in
+        # deploy-backend.yml). Doing it unconditionally on every infra apply
+        # previously re-dirtied the Lambda `description` field right after
+        # Terraform set it correctly, causing every subsequent plan to show
+        # the same phantom drift forever. If a specific infra change ever
+        # needs a forced cold start, flush it manually afterward instead.
