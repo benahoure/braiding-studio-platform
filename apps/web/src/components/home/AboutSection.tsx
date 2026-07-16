@@ -1,15 +1,12 @@
 import { Award, Heart, Leaf } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { useBusinessSettings } from '../../hooks/useBusinessSettings'
+import { useSettingsPhoto } from '../../hooks/useSettingsPhoto'
 
 // Ported from braiding-studio-webapp/components/sections/AboutSection.tsx.
 
 export function AboutSection() {
-  const { data: settings, isPending: settingsPending } = useBusinessSettings()
-  // No static fallback while settings load — avoids the old photo flashing
-  // before the admin-uploaded one swaps in on refresh.
-  const portraitUrl = settingsPending ? null : settings?.founderImageUrl || '/images/deb-2.jpg'
+  const portraitUrl = useSettingsPhoto((s) => s.founderImageUrl, '/images/deb-2.jpg')
   return (
     <section id="about" className="py-24 md:py-32" style={{ background: 'var(--cream)' }}>
       <div className="max-w-7xl mx-auto px-6">

@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Check, ExternalLink } from 'lucide-react'
 import { api } from '../lib/api'
+import { safeSessionStorage } from '../lib/safeStorage'
 import { PageMeta } from '../components/seo/PageMeta'
 
 const BOOKING_META = (
@@ -22,11 +23,14 @@ export function BookingSuccess() {
 
   const paymentIntentId = params.get('payment_intent')
   const redirectStatus   = params.get('redirect_status')
-  const appointmentId    = sessionStorage.getItem('ghb_pending_appt')
+  // safeSessionStorage: a bare read here runs during render, where a
+  // privacy-mode SecurityError would replace the paid customer's
+  // confirmation with the crash screen — and skip the confirm call.
+  const appointmentId    = safeSessionStorage.getItem('ghb_pending_appt')
 
   const confirmMutation = useMutation({
     mutationFn: () => api.confirmAppointment(appointmentId!, paymentIntentId!),
-    onSuccess: () => sessionStorage.removeItem('ghb_pending_appt'),
+    onSuccess: () => safeSessionStorage.removeItem('ghb_pending_appt'),
   })
 
   useEffect(() => {

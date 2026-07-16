@@ -67,6 +67,8 @@ export interface BusinessSettings {
   bookingNotice: string
   founderImageUrl?: string | null
   contactImageUrl?: string | null
+  /** About page "Her Story" section photo. */
+  storyImageUrl?: string | null
   /** Specific dates (YYYY-MM-DD) the salon is closed — days off, vacations. */
   blockedDates?: string[]
   /** Partial-day blocks: the salon is unavailable date start–end (HH:MM). */

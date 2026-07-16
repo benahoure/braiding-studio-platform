@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { formatDuration } from '../../lib/format'
 import { getCategoryLabel } from '../../lib/serviceCategories'
 import { resolveServiceImage, resolveServiceImageAlt } from '../../lib/serviceImages'
+import { ImageLightbox } from './ImageLightbox'
 import type { SalonService } from '../../types'
 
 // Braids by Deb service card — the card-luxury look from the original site,
@@ -44,6 +45,7 @@ export function ServiceCard({ service }: { service: SalonService }) {
   // Track load failures so a broken URL degrades to the styled placeholder
   // instead of the browser's broken-image icon.
   const [imageFailed, setImageFailed] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const imageSrc = resolveServiceImage(service)
   const familyLabel = getCategoryLabel(service.subcategory ?? service.category)
 
@@ -53,7 +55,17 @@ export function ServiceCard({ service }: { service: SalonService }) {
       {!imageFailed ? (
         <div
           className="relative w-full overflow-hidden"
-          style={{ aspectRatio: '4/5', borderRadius: '18px 18px 0 0' }}
+          style={{ aspectRatio: '4/5', borderRadius: '18px 18px 0 0', cursor: 'zoom-in' }}
+          onClick={() => setLightboxOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setLightboxOpen(true)
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`View ${service.name} photo`}
         >
           <img
             src={imageSrc}
@@ -131,6 +143,15 @@ export function ServiceCard({ service }: { service: SalonService }) {
           </Link>
         </div>
       </div>
+
+      {lightboxOpen && (
+        <ImageLightbox
+          src={imageSrc}
+          alt={resolveServiceImageAlt(service)}
+          title={service.name}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { PageMeta } from '../components/seo/PageMeta'
 import { AboutHero } from '../components/about/AboutHero'
+import { useSettingsPhoto } from '../hooks/useSettingsPhoto'
 
 // About Deb — editorial page in the Braids by Deb design language.
 
@@ -30,6 +31,8 @@ const VALUES = [
 ]
 
 export function About() {
+  const storyUrl = useSettingsPhoto((s) => s.storyImageUrl, '/images/deb-2.jpg')
+
   return (
     <>
       <PageMeta
@@ -60,11 +63,13 @@ export function About() {
                   boxShadow: '0 24px 64px rgba(0,0,0,0.14)',
                 }}
               >
-                <img
-                  src="/images/deb-2.jpg"
-                  alt="Deb — master braider and founder of Braids by Deb in Dallas, TX"
-                  className="absolute inset-0 h-full w-full object-cover object-top"
-                />
+                {storyUrl && (
+                  <img
+                    src={storyUrl}
+                    alt="Deb — master braider and founder of Braids by Deb in Dallas, TX"
+                    className="absolute inset-0 h-full w-full object-cover object-top"
+                  />
+                )}
               </div>
             </div>
 

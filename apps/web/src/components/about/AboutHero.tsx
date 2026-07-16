@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { useBusinessSettings } from '../../hooks/useBusinessSettings'
+import { useSettingsPhoto } from '../../hooks/useSettingsPhoto'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 
 // About hero — split layout: editorial copy left, a 3D mouse-tilt portrait of
@@ -17,10 +17,7 @@ const STAT_CHIPS = [
 
 export function AboutHero() {
   const reducedMotion = useReducedMotion()
-  const { data: settings, isPending: settingsPending } = useBusinessSettings()
-  // Don't render the static fallback while settings load — that briefly
-  // flashes the old photo before the admin-uploaded one swaps in on refresh.
-  const portraitUrl = settingsPending ? null : settings?.founderImageUrl || '/images/deb-1.jpg'
+  const portraitUrl = useSettingsPhoto((s) => s.founderImageUrl, '/images/deb-1.jpg')
   const frameRef = useRef<HTMLDivElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 

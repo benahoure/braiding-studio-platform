@@ -59,6 +59,7 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
             "bookingNotice": settings.get("bookingNotice", "We confirm all appointments within 24 hours."),
             "founderImageUrl": settings.get("founderImageUrl"),
             "contactImageUrl": settings.get("contactImageUrl"),
+            "storyImageUrl": settings.get("storyImageUrl"),
         }
         # Short, revalidating cache: settings (hours, photos, days off) must
         # reflect admin edits within seconds, not the 5 minutes a long cache

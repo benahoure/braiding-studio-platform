@@ -7,6 +7,7 @@ import type { z } from 'zod'
 
 import { ApiRequestError, api } from '../../lib/api'
 import { mockPortfolio } from '../../lib/mockData'
+import { safeSessionStorage } from '../../lib/safeStorage'
 import { bookingSchema } from '../../lib/validators'
 import { useReducedMotion } from '../../hooks/useReducedMotion'
 import type { AppointmentRequest } from '../../types'
@@ -181,7 +182,7 @@ export function BookingWizard() {
     mutationFn: ({ appointmentId, intentId }: { appointmentId: string; intentId: string }) =>
       api.confirmAppointment(appointmentId, intentId),
     onSuccess: (data) => {
-      sessionStorage.removeItem('ghb_pending_appt')
+      safeSessionStorage.removeItem('ghb_pending_appt')
       setConfirmedWith({ appointmentId: data.appointmentId, portalUrl: data.portalUrl ?? null })
       window.setTimeout(() => confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
     },
