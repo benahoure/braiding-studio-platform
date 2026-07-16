@@ -63,14 +63,20 @@ export interface StyleGroup {
 
 const SIZE_WORDS = ['Small', 'Medium', 'Large', 'Jumbo']
 
-/** "Small Boho Braids" → "Small"; names without a size word stay whole. */
+/**
+ * The size pill label. The explicit `size` field (set in admin) always wins;
+ * for services created before the field existed we fall back to the name
+ * prefix ("Small Boho Braids" → "Small"). Unsized services show the full name.
+ */
 export function sizeLabelFor(service: SalonService): string {
+  if (service.size?.trim()) return service.size.trim()
   const first = service.name.trim().split(/\s+/)[0]
   return SIZE_WORDS.includes(first) ? first : service.name
 }
 
 function sizeRank(service: SalonService): number {
-  const idx = SIZE_WORDS.indexOf(service.name.trim().split(/\s+/)[0])
+  const label = service.size?.trim() || service.name.trim().split(/\s+/)[0]
+  const idx = SIZE_WORDS.indexOf(label)
   return idx === -1 ? SIZE_WORDS.length : idx
 }
 

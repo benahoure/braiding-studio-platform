@@ -96,6 +96,8 @@ export interface SalonService {
   active: boolean
   bookingCount?: number
   displayOrder?: number
+  /** Explicit size tier (Small/Medium/Large/Jumbo) — drives the booking size pills. */
+  size?: string | null
   /** Optional length tiers (e.g. Mid-back / Waist / Butt length) with prices in cents. */
   lengths?: ServiceLengthOption[]
 }

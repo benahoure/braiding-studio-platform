@@ -318,6 +318,14 @@ function ServiceDrawer({
   const initialSub = service?.subcategory ?? ''
   const isCustomSub = !!(initialSub && !knownSubs.includes(initialSub))
   const [subcategory, setSubcategory] = useState<string>(isCustomSub ? '__custom__' : initialSub)
+  // Explicit size, pre-filled from the name prefix for services created
+  // before the field existed ("Small Box Braids" → Small) so editing an old
+  // service migrates it organically on save.
+  const [size, setSize] = useState<string>(() => {
+    if (service?.size) return service.size
+    const first = (service?.name ?? '').trim().split(/\s+/)[0]
+    return ['Small', 'Medium', 'Large', 'Jumbo'].includes(first) ? first : ''
+  })
   // If the stored value is a slug (lowercase + hyphens only), convert to display form so the admin sees readable text
   const [customSubcategory, setCustomSubcategory] = useState(() => {
     if (!isCustomSub) return ''
@@ -373,14 +381,16 @@ function ServiceDrawer({
       const subcategoryValue = (subcategory === '__custom__' ? (customSubcategory.trim() || null) : (subcategory || null)) as import('../../types').ServiceSubcategory | null
       const imagePositionValue = imagePosition || null
       const lengthsValue = lengthRows.length > 0 ? cleanedLengths : null
+      const sizeValue = size || null
       if (isEdit) {
         await api.updateService(service.serviceId, {
-          name, category, subcategory: subcategoryValue, description, startingPrice, durationMinutes,
-          imageUrl, imagePosition: imagePositionValue, featured, active, lengths: lengthsValue,
+          name, category, subcategory: subcategoryValue, size: sizeValue, description, startingPrice,
+          durationMinutes, imageUrl, imagePosition: imagePositionValue, featured, active, lengths: lengthsValue,
         })
       } else {
         await api.createService({
-          name, category, subcategory: subcategoryValue ?? undefined, description, startingPrice, durationMinutes,
+          name, category, subcategory: subcategoryValue ?? undefined, size: sizeValue ?? undefined,
+          description, startingPrice, durationMinutes,
           imageUrl, imagePosition: imagePositionValue ?? undefined, featured, active,
           lengths: lengthsValue ?? undefined,
         })
@@ -531,6 +541,34 @@ function ServiceDrawer({
               </div>
             )
           })()}
+
+          {/* Size — the booking flow groups same-subcategory services and
+              shows these as Small/Medium/Large pills */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-mocha/60">
+              Size
+            </label>
+            <select
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
+              className="w-full rounded-lg border border-cream-border bg-white px-3.5 py-2.5 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+            >
+              <option value="">— None (single-size style) —</option>
+              <option value="Small">Small</option>
+              <option value="Medium">Medium</option>
+              <option value="Large">Large</option>
+              <option value="Jumbo">Jumbo</option>
+            </select>
+            <p className="mt-1 text-[0.65rem] leading-snug text-mocha/40">
+              Same style in multiple sizes? Create one service per size (same subcategory) —
+              customers see them as size buttons when booking.
+              {size && !name.toLowerCase().includes(size.toLowerCase()) && (
+                <span className="mt-0.5 block font-medium" style={{ color: '#FFC98B' }}>
+                  Tip: include “{size}” in the service name too, so lists stay clear.
+                </span>
+              )}
+            </p>
+          </div>
 
           {/* Image Position */}
           <div>

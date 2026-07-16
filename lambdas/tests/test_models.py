@@ -112,3 +112,56 @@ def test_contact_validation_rejects_unsafe_photo_name() -> None:
                 "honeypot": "",
             }
         )
+
+
+class TestServiceSizeField:
+    """Explicit size tier on services — drives booking size pills."""
+
+    def _base(self, **overrides):
+        body = {
+            "name": "Box Braids",
+            "category": "braids-protective-styles",
+            "description": "Classic box braids with clean parts.",
+            "startingPrice": 20000,
+            "durationMinutes": 300,
+            "imageUrl": "https://cdn.example.test/services/x.jpg",
+        }
+        body.update(overrides)
+        return body
+
+    def test_write_accepts_size(self):
+        from services.models import ServiceWrite
+
+        svc = ServiceWrite.model_validate(self._base(size="Medium"))
+        assert svc.size == "Medium"
+        assert svc.model_dump()["size"] == "Medium"
+
+    def test_write_size_optional(self):
+        from services.models import ServiceWrite
+
+        svc = ServiceWrite.model_validate(self._base())
+        assert svc.size is None
+
+    def test_write_rejects_oversized_size(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from services.models import ServiceWrite
+
+        with pytest.raises(ValidationError):
+            ServiceWrite.model_validate(self._base(size="X" * 21))
+
+    def test_patch_null_size_marks_removal(self):
+        from services.models import ServicePatch
+
+        patch = ServicePatch.model_validate({"size": None})
+        fields = patch.model_dump(exclude_unset=True)
+        # None + present-in-payload → the handler REMOVEs the attribute
+        assert "size" in fields
+        assert fields["size"] is None
+
+    def test_patch_omitted_size_untouched(self):
+        from services.models import ServicePatch
+
+        patch = ServicePatch.model_validate({"name": "New Name"})
+        assert "size" not in patch.model_dump(exclude_unset=True)

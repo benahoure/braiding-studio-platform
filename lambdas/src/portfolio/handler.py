@@ -30,7 +30,7 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
         if category:
             items = [item for item in items if item.get("category") == category]
         items = sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
-        return ok({"items": items, "nextCursor": next_cursor}, cache_control="public, max-age=120")
+        return ok({"items": items, "nextCursor": next_cursor}, cache_control="public, max-age=30, must-revalidate")
     except ValueError as exc:
         return bad_request(str(exc))
     except Exception:

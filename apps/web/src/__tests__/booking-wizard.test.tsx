@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -297,5 +297,99 @@ describe('BookingWizard', () => {
     await screen.findByText('Choose a Category')
     const continueButton = screen.getByRole('button', { name: /^continue$/i })
     expect(continueButton).toBeDisabled()
+  })
+
+  it('size → length journey: pills appear in order, price updates live, Continue gates on length', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getServices').mockResolvedValue({
+      services: [
+        {
+          serviceId: 'kl-small',
+          name: 'Small Knotless Braids',
+          category: 'braids-protective-styles',
+          subcategory: 'knotless-braids',
+          size: 'Small',
+          description: 'Small knotless braids',
+          startingPrice: 20000,
+          priceUnit: 'cents',
+          durationMinutes: 360,
+          imageUrl: '',
+          featured: false,
+          active: true,
+          lengths: [
+            { label: 'Mid-back', price: 20000 },
+            { label: 'Waist length', price: 30000 },
+            { label: 'Butt length', price: 34000 },
+          ],
+        },
+        {
+          serviceId: 'kl-medium',
+          name: 'Medium Knotless Braids',
+          category: 'braids-protective-styles',
+          subcategory: 'knotless-braids',
+          size: 'Medium',
+          description: 'Medium knotless braids',
+          startingPrice: 18000,
+          priceUnit: 'cents',
+          durationMinutes: 300,
+          imageUrl: '',
+          featured: false,
+          active: true,
+          lengths: [
+            { label: 'Mid-back', price: 18000 },
+            { label: 'Waist length', price: 24000 },
+          ],
+        },
+        {
+          serviceId: 'cornrows',
+          name: 'Cornrows',
+          category: 'braids-protective-styles',
+          subcategory: 'cornrows',
+          description: 'Neat cornrows',
+          startingPrice: 16000,
+          priceUnit: 'cents',
+          durationMinutes: 180,
+          imageUrl: '',
+          featured: false,
+          active: true,
+        },
+      ],
+    })
+
+    renderWizard('/booking')
+
+    // 1. Category
+    await user.click(await screen.findByRole('button', { name: /braids & protective styles/i }))
+
+    // 2. Style family
+    await screen.findByText('Choose Your Style')
+    await user.click(screen.getByRole('button', { name: /knotless braids/i }))
+
+    // 3. Size pills — pick Small
+    await screen.findByText('Choose Your Size')
+    const sizeGroup = screen.getByRole('group', { name: /knotless braids sizes/i })
+    await user.click(within(sizeGroup).getByRole('button', { name: /small/i }))
+
+    // Preview shows the from-price; Continue is gated until a length is chosen
+    // BOTH price surfaces (sticky summary bar + preview card) show the from-price
+    await waitFor(() => expect(screen.getAllByText('From $200').length).toBeGreaterThanOrEqual(2))
+    expect(screen.getByText(/choose a length above/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^continue$/i })).toBeDisabled()
+
+    // 4. Length pills — pick Waist length → price updates to the exact $300
+    const lengthGroup = screen.getByRole('group', { name: /small knotless braids lengths/i })
+    await user.click(within(lengthGroup).getByRole('button', { name: /waist length/i }))
+    await waitFor(() => expect(screen.getAllByText('$300').length).toBeGreaterThan(0))
+    expect(screen.queryAllByText('From $200')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: /^continue$/i })).toBeEnabled()
+
+    // 5. Switch length → price updates live to $200 exact
+    await user.click(within(lengthGroup).getByRole('button', { name: /mid-back/i }))
+    await waitFor(() => expect(screen.getAllByText('$200').length).toBeGreaterThan(0))
+    expect(screen.getByRole('button', { name: /^continue$/i })).toBeEnabled()
+
+    // 6. Continue → Hair Details
+    await user.click(screen.getByRole('button', { name: /^continue$/i }))
+    await screen.findByText(/optional step/i)
   })
 })

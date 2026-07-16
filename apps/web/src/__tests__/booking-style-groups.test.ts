@@ -103,3 +103,41 @@ describe('length pricing helpers', () => {
     )
   })
 })
+
+describe('explicit size field', () => {
+  it('explicit size wins over the name prefix', async () => {
+    const { sizeLabelFor } = await import('../components/booking/bookingConfig')
+    const svc = { ...mockServices[0], name: 'Box Braids Deluxe', size: 'Jumbo' }
+    expect(sizeLabelFor(svc)).toBe('Jumbo')
+  })
+
+  it('falls back to name prefix when size is unset (existing catalog)', async () => {
+    const { sizeLabelFor } = await import('../components/booking/bookingConfig')
+    const svc = { ...mockServices[0], name: 'Small Box Braids', size: undefined }
+    expect(sizeLabelFor(svc)).toBe('Small')
+  })
+
+  it('unsized service with explicit-size siblings still shows full name', async () => {
+    const { sizeLabelFor } = await import('../components/booking/bookingConfig')
+    const svc = { ...mockServices[0], name: 'Bob Boho', size: null }
+    expect(sizeLabelFor(svc)).toBe('Bob Boho')
+  })
+
+  it('sorts by explicit size Small → Medium → Large → Jumbo regardless of names', async () => {
+    const { groupedStylesFor, BOOKING_CATEGORIES, sizeLabelFor } = await import(
+      '../components/booking/bookingConfig'
+    )
+    const braids = BOOKING_CATEGORIES.find((c) => c.id === 'braids-protective-styles')!
+    const base = mockServices.find((s) => s.subcategory === 'box-braids')!
+    // Names deliberately do NOT start with size words — only the field orders them.
+    const custom = [
+      { ...base, serviceId: 'x-l', name: 'Box Braids (chunky)', size: 'Large', displayOrder: 1 },
+      { ...base, serviceId: 'x-s', name: 'Box Braids (fine)', size: 'Small', displayOrder: 2 },
+      { ...base, serviceId: 'x-m', name: 'Box Braids (classic)', size: 'Medium', displayOrder: 3 },
+      { ...base, serviceId: 'other', name: 'Cornrows', subcategory: 'cornrows' as const, size: null, displayOrder: 4 },
+    ]
+    const groups = groupedStylesFor(braids, custom)!
+    const box = groups.find((g) => g.id === 'box-braids')!
+    expect(box.services.map(sizeLabelFor)).toEqual(['Small', 'Medium', 'Large'])
+  })
+})
