@@ -26,8 +26,12 @@ class PortfolioPatch(HtmlStrippingModelMixin, BaseModel):
     thumbnailUrl: str | None = None
     featured: bool | None = None
     active: bool | None = None
+    addImage: str | None = None  # appends a URL to the images[] gallery list
+    # Removes a URL from images[]. Not URL-validated on purpose — it only
+    # filters existing entries and must be able to remove a malformed legacy one.
+    removeImage: str | None = None
 
-    @field_validator("imageUrl", "thumbnailUrl")
+    @field_validator("imageUrl", "thumbnailUrl", "addImage")
     @classmethod
     def validate_optional_urls(cls, value: str | None) -> str | None:
         return https_url(value) if value else value

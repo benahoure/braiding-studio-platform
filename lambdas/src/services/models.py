@@ -15,6 +15,9 @@ ServiceCategory = Literal[
     "kids",
 ]
 
+# Gallery cap — the public slider shows up to 4 angles of a style.
+MAX_SERVICE_PHOTOS = 4
+
 
 class LengthOption(HtmlStrippingModelMixin, BaseModel):
     """One length tier of a service, e.g. 'Waist length' at $300."""
@@ -61,6 +64,9 @@ class ServicePatch(HtmlStrippingModelMixin, BaseModel):
     featured: bool | None = None
     active: bool | None = None
     addImage: str | None = None  # appends a URL to the images[] gallery list
+    # Removes a URL from images[]. Not URL-validated on purpose — it only
+    # filters existing entries and must be able to remove a malformed legacy one.
+    removeImage: str | None = None
 
     @field_validator("imageUrl", "addImage")
     @classmethod

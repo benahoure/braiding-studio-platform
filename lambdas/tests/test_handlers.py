@@ -470,6 +470,138 @@ def test_business_settings_returns_safe_defaults_when_unseeded(monkeypatch, lamb
     assert body["address"]["city"] == "Dallas"
 
 
+class TestServiceGallery:
+    """Service photo gallery (up to 4 angles for the public slider):
+    addImage is capped and deduped; removeImage filters the list but can
+    never orphan the cover photo."""
+
+    URL_A = "https://assets.braidsbydeb.com/services/a.jpg"
+    URL_B = "https://assets.braidsbydeb.com/services/b.jpg"
+    URL_C = "https://assets.braidsbydeb.com/services/c.jpg"
+
+    def _event(self, body: dict) -> dict:
+        return {"body": json.dumps(body), "pathParameters": {"serviceId": "svc-1"}}
+
+    def _run(self, monkeypatch, body: dict, item: dict):
+        from admin import handler
+
+        calls: dict = {}
+        monkeypatch.setattr(handler, "validate_cdn_url", lambda value, prefix: value)
+        monkeypatch.setattr(handler, "audit", lambda *a, **kw: None)
+        monkeypatch.setattr(handler, "get_item", lambda table, key: dict(item))
+        monkeypatch.setattr(
+            handler,
+            "append_list_item",
+            lambda table, key, attr, value: calls.setdefault("appended", value)
+            or {**item, "images": [*item.get("images", []), value]},
+        )
+        monkeypatch.setattr(
+            handler,
+            "update_item",
+            lambda table, key, updates: calls.setdefault("updated", updates) or {**item, **updates},
+        )
+        monkeypatch.setattr(
+            handler,
+            "update_item_with_removes",
+            lambda table, key, sets, removes: {**item, **sets},
+        )
+        response = handler.patch_service(self._event(body), "admin-1")
+        return response, calls
+
+    def _item(self, images: list[str]) -> dict:
+        return {"serviceId": "svc-1", "name": "Small Knotless", "imageUrl": self.URL_A, "images": images}
+
+    def test_add_image_appends(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"addImage": self.URL_B}, self._item([self.URL_A]))
+        assert response["statusCode"] == 200
+        assert calls["appended"] == self.URL_B
+
+    def test_add_image_rejected_at_cap_of_four(self, monkeypatch):
+        item = self._item([self.URL_A, self.URL_B, self.URL_C, "https://assets.braidsbydeb.com/services/d.jpg"])
+        response, calls = self._run(monkeypatch, {"addImage": "https://assets.braidsbydeb.com/services/e.jpg"}, item)
+        assert response["statusCode"] == 400
+        assert "4 photos" in json.loads(response["body"])["error"]["message"]
+        assert "appended" not in calls
+
+    def test_add_image_rejects_duplicate(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"addImage": self.URL_B}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 400
+        assert "already" in json.loads(response["body"])["error"]["message"]
+        assert "appended" not in calls
+
+    def test_remove_image_filters_gallery(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"removeImage": self.URL_B}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 200
+        assert calls["updated"]["images"] == [self.URL_A]
+
+    def test_remove_cover_is_blocked(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"removeImage": self.URL_A}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 400
+        assert "cover" in json.loads(response["body"])["error"]["message"]
+        assert "updated" not in calls
+
+    def test_remove_image_alone_passes_empty_guard(self, monkeypatch):
+        response, _ = self._run(monkeypatch, {"removeImage": self.URL_C}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 200
+
+
+class TestPortfolioGallery:
+    """Portfolio items share the service gallery rules: capped at 4,
+    deduped, and the cover picture can never be removed."""
+
+    URL_A = "https://assets.braidsbydeb.com/portfolio/a.jpg"
+    URL_B = "https://assets.braidsbydeb.com/portfolio/b.jpg"
+
+    def _run(self, monkeypatch, body: dict, item: dict):
+        from admin import handler
+
+        calls: dict = {}
+        monkeypatch.setattr(handler, "validate_cdn_url_any", lambda value: value)
+        monkeypatch.setattr(handler, "audit", lambda *a, **kw: None)
+        monkeypatch.setattr(handler, "get_item", lambda table, key: dict(item))
+        monkeypatch.setattr(
+            handler,
+            "append_list_item",
+            lambda table, key, attr, value: calls.setdefault("appended", value)
+            or {**item, "images": [*item.get("images", []), value]},
+        )
+        monkeypatch.setattr(
+            handler,
+            "update_item",
+            lambda table, key, updates: calls.setdefault("updated", updates) or {**item, **updates},
+        )
+        event = {"body": json.dumps(body), "pathParameters": {"styleId": "style-1"}}
+        return handler.patch_portfolio(event, "admin-1"), calls
+
+    def _item(self, images: list[str] | None) -> dict:
+        item = {"styleId": "style-1", "title": "Boho Look", "imageUrl": self.URL_A}
+        if images is not None:
+            item["images"] = images
+        return item
+
+    def test_add_image_appends_even_on_legacy_items_without_gallery(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"addImage": self.URL_B}, self._item(None))
+        assert response["statusCode"] == 200
+        assert calls["appended"] == self.URL_B
+
+    def test_add_image_rejected_at_cap(self, monkeypatch):
+        item = self._item([f"https://assets.braidsbydeb.com/portfolio/{n}.jpg" for n in "abcd"])
+        response, calls = self._run(monkeypatch, {"addImage": self.URL_B}, item)
+        assert response["statusCode"] == 400
+        assert "appended" not in calls
+
+    def test_remove_cover_is_blocked(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"removeImage": self.URL_A}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 400
+        assert "cover" in json.loads(response["body"])["error"]["message"]
+        assert "updated" not in calls
+
+    def test_remove_image_filters_gallery(self, monkeypatch):
+        response, calls = self._run(monkeypatch, {"removeImage": self.URL_B}, self._item([self.URL_A, self.URL_B]))
+        assert response["statusCode"] == 200
+        assert calls["updated"]["images"] == [self.URL_A]
+
+
 class TestStoryImageSetting:
     """About page 'Her Story' photo — admin-editable via storyImageUrl.
 

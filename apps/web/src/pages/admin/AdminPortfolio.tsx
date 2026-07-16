@@ -3,9 +3,11 @@ import { Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { ImageUploader } from '../../components/admin/ImageUploader'
+import { PhotoGalleryManager } from '../../components/admin/PhotoGalleryManager'
 import { PageMeta } from '../../components/seo/PageMeta'
-import { api } from '../../lib/api'
+import { ApiRequestError, api } from '../../lib/api'
 import { shortDate } from '../../lib/format'
+import { resolveAllPhotos } from '../../lib/serviceImages'
 import type { PortfolioItem, SalonService, ServiceCategory } from '../../types'
 import { AdminPageShell } from './AdminDashboard'
 
@@ -32,6 +34,7 @@ type Destination = 'portfolio' | 'add-to-service' | 'new-service'
 export function AdminPortfolio() {
   const queryClient = useQueryClient()
   const [showUpload, setShowUpload] = useState(false)
+  const [managingPhotos, setManagingPhotos] = useState<PortfolioItem | null>(null)
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['admin-portfolio'],
@@ -129,12 +132,21 @@ export function AdminPortfolio() {
                   updateMutation.mutate({ id: item.styleId, body: { featured: !item.featured } })
                 }
                 onDelete={() => handleDelete(item)}
+                onManagePhotos={() => setManagingPhotos(item)}
                 isUpdating={isMutating}
               />
             ))}
           </div>
         )}
       </AdminPageShell>
+
+      {managingPhotos && (
+        <PhotoManagerDrawer
+          item={managingPhotos}
+          onClose={() => setManagingPhotos(null)}
+          onChanged={() => queryClient.invalidateQueries({ queryKey: ['admin-portfolio'] })}
+        />
+      )}
 
       {showUpload && (
         <AddPhotoDrawer
@@ -155,14 +167,17 @@ function PortfolioAdminCard({
   onToggleActive,
   onToggleFeatured,
   onDelete,
+  onManagePhotos,
   isUpdating,
 }: {
   item: PortfolioItem
   onToggleActive: () => void
   onToggleFeatured: () => void
   onDelete: () => void
+  onManagePhotos: () => void
   isUpdating: boolean
 }) {
+  const photoCount = resolveAllPhotos(item.imageUrl, item.images).length
   return (
     <div
       className="group relative overflow-hidden rounded-xl border border-cream-border bg-paper shadow-soft transition-all hover:shadow-md"
@@ -216,6 +231,16 @@ function PortfolioAdminCard({
           <button
             type="button"
             disabled={isUpdating}
+            onClick={onManagePhotos}
+            className="rounded px-2 py-0.5 text-[0.65rem] font-semibold disabled:opacity-40"
+            style={{ background: 'rgba(191,161,74,0.14)', color: '#E8CD8B' }}
+          >
+            Photos ({photoCount})
+          </button>
+
+          <button
+            type="button"
+            disabled={isUpdating}
             onClick={onDelete}
             className="ml-auto rounded p-0.5 text-error/60 transition-colors hover:text-error disabled:opacity-40"
             aria-label="Delete"
@@ -225,6 +250,93 @@ function PortfolioAdminCard({
         </div>
       </div>
     </div>
+  )
+}
+
+
+// Per-photo gallery manager — same rules as services: up to 4 pictures,
+// cover always leads, order badges match what clients see on the site.
+function PhotoManagerDrawer({
+  item,
+  onClose,
+  onChanged,
+}: {
+  item: PortfolioItem
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [cover, setCover] = useState(item.imageUrl)
+  const [gallery, setGallery] = useState<string[]>(item.images?.length ? item.images : [item.imageUrl])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  async function run(op: () => Promise<PortfolioItem>) {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await op()
+      setGallery(updated.images?.length ? updated.images : [updated.imageUrl])
+      setCover(updated.imageUrl)
+      onChanged()
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Failed to update photos. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col overflow-y-auto shadow-2xl"
+        style={{ background: '#1C0D17' }}
+      >
+        <div
+          className="flex shrink-0 items-center justify-between px-6 py-5"
+          style={{ background: 'linear-gradient(135deg, #1F0A15, #1C0D17)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          <div>
+            <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-gold-light/70">Gallery</p>
+            <h2 className="mt-0.5 truncate text-lg font-semibold text-cream">Photos — {item.title}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10"
+            style={{ color: 'rgba(255,240,247,0.6)' }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-6">
+          <p className="mb-4 text-[0.68rem] leading-relaxed text-mocha/50">
+            Add up to 4 pictures of this look — front, back, side. Visitors slide
+            through them on the Gallery page <strong>in the order shown below</strong>:
+            the cover always leads. Use “Make cover” to change which picture leads.
+          </p>
+          <PhotoGalleryManager
+            coverUrl={cover}
+            gallery={gallery}
+            busy={busy}
+            error={error}
+            uploadFolder="portfolio"
+            onAdd={(url) => run(() => api.updatePortfolio(item.styleId, { addImage: url }))}
+            onRemove={(url) => run(() => api.updatePortfolio(item.styleId, { removeImage: url }))}
+            onMakeCover={(url) => run(() => api.updatePortfolio(item.styleId, { imageUrl: url, thumbnailUrl: url }))}
+          />
+        </div>
+      </div>
+    </>
   )
 }
 

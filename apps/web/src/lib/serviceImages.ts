@@ -36,3 +36,31 @@ export function resolveServiceImageAlt(
 ): string {
   return service.imageAlt?.trim() || service.name
 }
+
+/** Public display cap — sliders and lightboxes never show more than this. */
+export const MAX_GALLERY_PHOTOS = 4
+
+/**
+ * Everything in display order (cover first, deduped), uncapped — admin
+ * managers must show overflow photos from legacy data so they can be removed.
+ */
+export function resolveAllPhotos(cover: string, images?: string[]): string[] {
+  const gallery = (images ?? []).filter((url) => url && url !== cover)
+  return [cover, ...Array.from(new Set(gallery))]
+}
+
+/**
+ * Slider/lightbox order for any photo gallery, hard-capped at 4. The cap is
+ * also enforced when adding photos, but legacy data predates that rule —
+ * the public site guarantees the limit regardless of what's stored.
+ */
+export function resolveSlides(cover: string, images?: string[]): string[] {
+  return resolveAllPhotos(cover, images).slice(0, MAX_GALLERY_PHOTOS)
+}
+
+/** Service photos with the cover fallback chain applied. */
+export function resolveServiceSlides(
+  service: Pick<SalonService, 'imageUrl' | 'subcategory' | 'images'>,
+): string[] {
+  return resolveSlides(resolveServiceImage(service), service.images)
+}

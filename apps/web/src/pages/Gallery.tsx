@@ -4,8 +4,10 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { ArcGalleryHero } from '../components/gallery/ArcGalleryHero'
 import { ImageLightbox } from '../components/ui/ImageLightbox'
+import { ServiceImageSlider } from '../components/ui/ServiceImageSlider'
 import { SocialPill } from '../components/ui/SocialIcons'
 import { PageMeta } from '../components/seo/PageMeta'
+import { resolveSlides } from '../lib/serviceImages'
 import { api } from '../lib/api'
 import { mockPortfolio } from '../lib/mockData'
 import { defaultBusinessSettings } from '../lib/mockData'
@@ -30,7 +32,7 @@ export function Gallery() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeFilter = searchParams.get('category') ?? 'all'
   const [hovered, setHovered] = useState<string | null>(null)
-  const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null)
+  const [lightbox, setLightbox] = useState<{ item: PortfolioItem; index: number } | null>(null)
   const { data: settingsData } = useBusinessSettings()
   const settings = settingsData ?? defaultBusinessSettings
 
@@ -100,43 +102,27 @@ export function Gallery() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {items.map((item) => (
                 <div key={item.styleId}>
-                  {/* Keyboard/AT target is the img itself (no focusable children,
-                      valid role=button); the tile onClick is pointer convenience
-                      only. Putting role=button on the tile would nest the overlay
-                      Book link inside a button AND let its Enter keydown bubble
-                      into preventDefault, hijacking booking navigation. */}
+                  {/* The slider's active img owns the button semantics (no
+                      focusable children — valid). The overlay is click-through
+                      (pointer-events none) so photo taps reach the slider at
+                      the right index; only its Book link stays clickable. */}
                   <div
                     className="gallery-item"
-                    style={{ aspectRatio: '4/5', cursor: 'zoom-in' }}
+                    style={{ aspectRatio: '4/5' }}
                     onMouseEnter={() => setHovered(item.styleId)}
                     onMouseLeave={() => setHovered(null)}
-                    onClick={() => setLightboxItem(item)}
                   >
-                    <img
-                      src={item.imageUrl}
+                    <ServiceImageSlider
+                      slides={resolveSlides(item.imageUrl, item.images)}
                       alt={item.title}
-                      loading="lazy"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`View ${item.title} photo`}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          setLightboxItem(item)
-                        }
-                      }}
-                      className="w-full h-full transition-transform duration-500"
-                      style={{
-                        objectFit: 'cover',
-                        objectPosition: 'top center',
-                        transform: hovered === item.styleId ? 'scale(1.06)' : 'scale(1)',
-                        borderRadius: '14px',
-                      }}
+                      className="h-full w-full rounded-[14px]"
+                      activateLabel={`View ${item.title} photo`}
+                      onImageActivate={(index) => setLightbox({ item, index })}
                     />
                     {/* Desktop hover overlay with book CTA */}
                     <div
                       className="gallery-overlay hidden md:flex flex-col !items-start justify-end gap-2"
-                      style={{ opacity: hovered === item.styleId ? 1 : undefined }}
+                      style={{ opacity: hovered === item.styleId ? 1 : undefined, pointerEvents: 'none' }}
                     >
                       <span
                         style={{
@@ -152,7 +138,7 @@ export function Gallery() {
                       <Link
                         to={`/booking?style=${item.styleId}`}
                         className="btn-gold"
-                        style={{ fontSize: '0.62rem', padding: '0.45rem 0.9rem' }}
+                        style={{ fontSize: '0.62rem', padding: '0.45rem 0.9rem', pointerEvents: 'auto' }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         Book This Style
@@ -205,12 +191,13 @@ export function Gallery() {
         </div>
       </section>
 
-      {lightboxItem && (
+      {lightbox && (
         <ImageLightbox
-          src={lightboxItem.imageUrl}
-          alt={lightboxItem.title}
-          title={lightboxItem.title}
-          onClose={() => setLightboxItem(null)}
+          images={resolveSlides(lightbox.item.imageUrl, lightbox.item.images)}
+          initialIndex={lightbox.index}
+          alt={lightbox.item.title}
+          title={lightbox.item.title}
+          onClose={() => setLightbox(null)}
         />
       )}
     </>
