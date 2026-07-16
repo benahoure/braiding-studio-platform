@@ -60,7 +60,7 @@ def get_reviews(event: dict) -> dict:
                     "totalCount": aggregate.get("totalCount", 0),
                 },
             },
-            cache_control="public, max-age=300",
+            cache_control="public, max-age=30, must-revalidate",
         )
     except ValueError as exc:
         return bad_request(str(exc))

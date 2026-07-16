@@ -57,7 +57,9 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
             items = [item for item in items if item.get("category") == category or item.get("subcategory") == category]
         return ok(
             {"services": sorted(items, key=lambda item: item.get("name", ""))},
-            cache_control="public, max-age=300",
+            # Short cache: admin price/length edits must reach customers in
+            # seconds — a long cache once hid new length pricing for 5 minutes.
+            cache_control="public, max-age=30, must-revalidate",
         )
     except Exception:
         logger.exception("Failed to fetch services")

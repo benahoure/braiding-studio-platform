@@ -27,6 +27,9 @@ class ServiceWrite(HtmlStrippingModelMixin, BaseModel):
     name: str = Field(min_length=2, max_length=100)
     category: ServiceCategory
     subcategory: str | None = Field(default=None, max_length=100)
+    # Explicit size tier (Small/Medium/Large/Jumbo) — drives the booking
+    # flow's size pills. Optional: unsized styles (Cornrows, Bob) omit it.
+    size: str | None = Field(default=None, max_length=20)
     description: str = Field(min_length=10, max_length=500)
     startingPrice: int = Field(gt=0)
     durationMinutes: int = Field(gt=0, le=720)
@@ -47,6 +50,7 @@ class ServicePatch(HtmlStrippingModelMixin, BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
     category: ServiceCategory | None = None
     subcategory: str | None = Field(default=None, max_length=100)
+    size: str | None = Field(default=None, max_length=20)
     description: str | None = Field(default=None, min_length=10, max_length=500)
     startingPrice: int | None = Field(default=None, gt=0)
     durationMinutes: int | None = Field(default=None, gt=0, le=720)
