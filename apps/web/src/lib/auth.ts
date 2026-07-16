@@ -1,3 +1,5 @@
+import { safeSessionStorage } from './safeStorage'
+
 const tokenKey = 'braids-by-deb-admin-token'
 const codeVerifierKey = 'braids-by-deb-pkce-verifier'
 
@@ -18,17 +20,21 @@ async function generatePKCE(): Promise<{ verifier: string; challenge: string }> 
   return { verifier, challenge }
 }
 
+// safeSessionStorage falls back to in-memory storage when privacy modes block
+// storage access — so login still works for the session (the token would
+// otherwise vanish between setAdminToken and the ProtectedAdminRoute check,
+// silently bouncing a successful login back to the sign-in form).
 export function getAdminToken(): string | null {
-  return window.sessionStorage.getItem(tokenKey)
+  return safeSessionStorage.getItem(tokenKey)
 }
 
 export function setAdminToken(token: string): void {
-  window.sessionStorage.setItem(tokenKey, token)
+  safeSessionStorage.setItem(tokenKey, token)
 }
 
 export function clearAdminToken(): void {
-  window.sessionStorage.removeItem(tokenKey)
-  window.sessionStorage.removeItem(codeVerifierKey)
+  safeSessionStorage.removeItem(tokenKey)
+  safeSessionStorage.removeItem(codeVerifierKey)
 }
 
 export function adminIsAuthenticated(): boolean {
@@ -178,7 +184,7 @@ export async function redirectToCognito(): Promise<void> {
   if (!domain || !clientId) return
 
   const { verifier, challenge } = await generatePKCE()
-  window.sessionStorage.setItem(codeVerifierKey, verifier)
+  safeSessionStorage.setItem(codeVerifierKey, verifier)
 
   const redirectUri = encodeURIComponent(`${window.location.origin}/admin`)
   const url = `https://${domain}/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email&code_challenge=${challenge}&code_challenge_method=S256`
@@ -188,7 +194,7 @@ export async function redirectToCognito(): Promise<void> {
 export async function exchangeCodeForToken(code: string): Promise<string | null> {
   const domain = import.meta.env.VITE_COGNITO_DOMAIN
   const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID
-  const verifier = window.sessionStorage.getItem(codeVerifierKey)
+  const verifier = safeSessionStorage.getItem(codeVerifierKey)
   if (!domain || !clientId || !verifier) return null
 
   const body = new URLSearchParams({
@@ -207,7 +213,7 @@ export async function exchangeCodeForToken(code: string): Promise<string | null>
     })
     if (!response.ok) return null
     const data = await response.json()
-    window.sessionStorage.removeItem(codeVerifierKey)
+    safeSessionStorage.removeItem(codeVerifierKey)
     return (data.id_token ?? data.access_token) || null
   } catch {
     return null

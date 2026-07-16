@@ -405,11 +405,16 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
               {destinationOptions.map((opt) => (
                 <label
                   key={opt.value}
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-all"
-                  style={{
-                    borderColor: destination === opt.value ? 'rgba(184,145,42,0.6)' : 'rgba(0,0,0,0.1)',
-                    background: destination === opt.value ? 'rgba(232,120,159,0.06)' : 'white',
-                  }}
+                  // Inline backgrounds bypass the .admin-theme remapping — unselected
+                  // cards must use classes so bg-white resolves to the dark plum.
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
+                    destination === opt.value ? '' : 'border-cream-border bg-white'
+                  }`}
+                  style={
+                    destination === opt.value
+                      ? { borderColor: 'rgba(184,145,42,0.6)', background: 'rgba(232,120,159,0.06)' }
+                      : undefined
+                  }
                 >
                   <input
                     type="radio"

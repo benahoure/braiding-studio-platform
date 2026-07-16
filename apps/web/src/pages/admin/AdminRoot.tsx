@@ -336,6 +336,15 @@ export function AdminRoot() {
                 </p>
               </div>
 
+              {/* Success — pinned above the form so it can't hide below the
+                  fold on mobile after a password reset. */}
+              {success && view === 'login' && (
+                <div className="mb-6 flex items-start gap-3 rounded-xl p-4" style={{ background: 'rgba(20,80,40,0.22)', border: '1px solid rgba(50,160,80,0.30)' }}>
+                  <CheckCircle size={15} className="mt-0.5 shrink-0" style={{ color: '#4ade80' }} />
+                  <p className="text-sm leading-snug" style={{ color: '#86efac' }}>{success}</p>
+                </div>
+              )}
+
               {/* ── LOGIN VIEW ── */}
               {view === 'login' && (
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -364,14 +373,6 @@ export function AdminRoot() {
                       </button>
                     </div>
                   </div>
-
-                  {/* Success */}
-                  {success && (
-                    <div className="flex items-start gap-3 rounded-xl p-4" style={{ background: 'rgba(20,80,40,0.22)', border: '1px solid rgba(50,160,80,0.30)' }}>
-                      <CheckCircle size={15} className="mt-0.5 shrink-0" style={{ color: '#4ade80' }} />
-                      <p className="text-sm leading-snug" style={{ color: '#86efac' }}>{success}</p>
-                    </div>
-                  )}
 
                   {/* Locked state */}
                   {locked && (

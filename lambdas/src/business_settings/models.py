@@ -60,6 +60,7 @@ class BusinessSettingsPatch(HtmlStrippingModelMixin, BaseModel):
     bookingNotice: str | None = Field(default=None, max_length=300)
     founderImageUrl: str | None = None
     contactImageUrl: str | None = None
+    storyImageUrl: str | None = None  # About page "Her Story" photo
     blockedDates: list[str] | None = Field(
         default=None, description="ISO dates (YYYY-MM-DD) the salon is closed for one-off reasons"
     )
@@ -74,7 +75,7 @@ class BusinessSettingsPatch(HtmlStrippingModelMixin, BaseModel):
     def validate_phone(cls, value: str | None) -> str | None:
         return normalize_us_phone(value) if value else value
 
-    @field_validator("googleMapsUrl", "googleReviewUrl", "founderImageUrl", "contactImageUrl")
+    @field_validator("googleMapsUrl", "googleReviewUrl", "founderImageUrl", "contactImageUrl", "storyImageUrl")
     @classmethod
     def validate_urls(cls, value: str | None) -> str | None:
         return https_url(value) if value else value

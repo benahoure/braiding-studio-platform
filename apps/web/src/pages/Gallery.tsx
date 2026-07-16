@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { ArcGalleryHero } from '../components/gallery/ArcGalleryHero'
+import { ImageLightbox } from '../components/ui/ImageLightbox'
 import { SocialPill } from '../components/ui/SocialIcons'
 import { PageMeta } from '../components/seo/PageMeta'
 import { api } from '../lib/api'
@@ -29,6 +30,7 @@ export function Gallery() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeFilter = searchParams.get('category') ?? 'all'
   const [hovered, setHovered] = useState<string | null>(null)
+  const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null)
   const { data: settingsData } = useBusinessSettings()
   const settings = settingsData ?? defaultBusinessSettings
 
@@ -98,16 +100,31 @@ export function Gallery() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {items.map((item) => (
                 <div key={item.styleId}>
+                  {/* Keyboard/AT target is the img itself (no focusable children,
+                      valid role=button); the tile onClick is pointer convenience
+                      only. Putting role=button on the tile would nest the overlay
+                      Book link inside a button AND let its Enter keydown bubble
+                      into preventDefault, hijacking booking navigation. */}
                   <div
                     className="gallery-item"
-                    style={{ aspectRatio: '4/5' }}
+                    style={{ aspectRatio: '4/5', cursor: 'zoom-in' }}
                     onMouseEnter={() => setHovered(item.styleId)}
                     onMouseLeave={() => setHovered(null)}
+                    onClick={() => setLightboxItem(item)}
                   >
                     <img
                       src={item.imageUrl}
                       alt={item.title}
                       loading="lazy"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View ${item.title} photo`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setLightboxItem(item)
+                        }
+                      }}
                       className="w-full h-full transition-transform duration-500"
                       style={{
                         objectFit: 'cover',
@@ -136,6 +153,7 @@ export function Gallery() {
                         to={`/booking?style=${item.styleId}`}
                         className="btn-gold"
                         style={{ fontSize: '0.62rem', padding: '0.45rem 0.9rem' }}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         Book This Style
                       </Link>
@@ -186,6 +204,15 @@ export function Gallery() {
           </div>
         </div>
       </section>
+
+      {lightboxItem && (
+        <ImageLightbox
+          src={lightboxItem.imageUrl}
+          alt={lightboxItem.title}
+          title={lightboxItem.title}
+          onClose={() => setLightboxItem(null)}
+        />
+      )}
     </>
   )
 }

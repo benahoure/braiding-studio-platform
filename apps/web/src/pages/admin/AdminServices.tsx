@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { ImageUploader } from '../../components/admin/ImageUploader'
 import { PageMeta } from '../../components/seo/PageMeta'
+import { ImageLightbox } from '../../components/ui/ImageLightbox'
 import { api, ApiRequestError } from '../../lib/api'
 import { formatDuration, formatPrice } from '../../lib/format'
 import { SERVICE_CATEGORIES, getCategoryLabel } from '../../lib/serviceCategories'
@@ -257,43 +258,11 @@ function ServiceRow({
         <ImageLightbox
           src={service.imageUrl}
           alt={service.name}
+          title={service.name}
           onClose={() => setLightboxOpen(false)}
         />
       )}
     </>
-  )
-}
-
-function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-      onClick={onClose}
-    >
-      <div className="relative max-h-[90vh] max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={src}
-          alt={alt}
-          className="max-h-[80vh] max-w-full rounded-xl object-contain shadow-2xl"
-        />
-        <p className="mt-3 text-center text-sm font-semibold text-white/80">{alt}</p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-espresso shadow-lg hover:bg-white"
-        >
-          ✕
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -489,9 +458,12 @@ function ServiceDrawer({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Knotless Braids — Waist Length"
+              placeholder="e.g. Small Knotless Braids"
               className="w-full rounded-lg border border-cream-border bg-white px-3.5 py-2.5 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
             />
+            <p className="mt-1 text-[0.65rem] leading-snug text-mocha/40">
+              No need to put lengths in the name — add them under Length Pricing below.
+            </p>
           </div>
 
           {/* Category */}
@@ -538,6 +510,10 @@ function ServiceDrawer({
                     className="mt-2 w-full rounded-lg border border-cream-border bg-white px-3.5 py-2.5 text-sm text-espresso focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
                   />
                 )}
+                <p className="mt-1 text-[0.65rem] leading-snug text-mocha/40">
+                  The style family. Services with the same subcategory show up as ONE style
+                  when clients book — e.g. Small, Medium &amp; Large Knotless all under “Knotless Braids”.
+                </p>
               </div>
             )
           })()}
@@ -560,11 +536,13 @@ function ServiceDrawer({
               <option value="Jumbo">Jumbo</option>
             </select>
             <p className="mt-1 text-[0.65rem] leading-snug text-mocha/40">
-              Same style in multiple sizes? Create one service per size (same subcategory) —
-              customers see them as size buttons when booking.
+              This becomes the size button clients tap when booking. Offering this style in
+              several sizes? Save a separate service for each size, all with the same
+              subcategory above.
               {size && !name.toLowerCase().includes(size.toLowerCase()) && (
                 <span className="mt-0.5 block font-medium" style={{ color: '#FFC98B' }}>
-                  Tip: include “{size}” in the service name too, so lists stay clear.
+                  Tip: start the name with “{size}” (e.g. “{size} Knotless Braids”) so your
+                  service list and client emails stay easy to tell apart.
                 </span>
               )}
             </p>

@@ -52,7 +52,10 @@ export function AdminSettings() {
 
   const [form, setForm] = useState<BusinessSettings>(settings)
   const [saved, setSaved] = useState(false)
-  const [photoSaved, setPhotoSaved] = useState<'founder' | 'contact' | null>(null)
+  const [photoSaved, setPhotoSaved] = useState<'founder' | 'story' | 'contact' | null>(null)
+  // Scoped like photoSaved — the shared photoMutation's isError would show
+  // the failure banner under all three photo cards at once.
+  const [photoError, setPhotoError] = useState<'founder' | 'story' | 'contact' | null>(null)
   const [dayOffFrom, setDayOffFrom] = useState('')
   const [dayOffTo, setDayOffTo] = useState('')
   const [blockDate, setBlockDate] = useState('')
@@ -562,7 +565,7 @@ export function AdminSettings() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cocoa">
                   Founder Photo
                   <span className="ml-2 font-normal normal-case tracking-normal text-mocha/40">
-                    About & Home pages · 4:5 portrait
+                    About page top + Home page · 4:5 portrait
                   </span>
                 </p>
                 {settings.founderImageUrl && (
@@ -577,7 +580,8 @@ export function AdminSettings() {
                   aspectRatio={4 / 5}
                   label="Upload founder photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
-                  onUploaded={(url) =>
+                  onUploaded={(url) => {
+                    setPhotoError(null)
                     photoMutation.mutate(
                       { founderImageUrl: url },
                       {
@@ -585,16 +589,60 @@ export function AdminSettings() {
                           setPhotoSaved('founder')
                           setTimeout(() => setPhotoSaved(null), 4000)
                         },
+                        onError: () => setPhotoError('founder'),
                       },
                     )
-                  }
+                  }}
                 />
                 {photoSaved === 'founder' && (
                   <p className="mt-2 text-xs font-semibold" style={{ color: '#8CE8AC' }}>
                     ✓ Photo saved — it&rsquo;s now live on the About and Home pages.
                   </p>
                 )}
-                {photoMutation.isError && (
+                {photoError === 'founder' && (
+                  <p className="mt-1 text-xs text-error">Failed to save photo. Please try again.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cocoa">
+                  “Her Story” Photo
+                  <span className="ml-2 font-normal normal-case tracking-normal text-mocha/40">
+                    About page, lower photo · 4:5 portrait
+                  </span>
+                </p>
+                {settings.storyImageUrl && (
+                  <img
+                    src={settings.storyImageUrl}
+                    alt="Current Her Story photo"
+                    className="mb-3 aspect-[4/5] w-full max-w-[160px] rounded-xl object-cover shadow"
+                  />
+                )}
+                <ImageUploader
+                  folder="portfolio"
+                  aspectRatio={4 / 5}
+                  label="Upload Her Story photo"
+                  hint="4:5 portrait · JPG or WebP · max 10 MB"
+                  onUploaded={(url) => {
+                    setPhotoError(null)
+                    photoMutation.mutate(
+                      { storyImageUrl: url },
+                      {
+                        onSuccess: () => {
+                          setPhotoSaved('story')
+                          setTimeout(() => setPhotoSaved(null), 4000)
+                        },
+                        onError: () => setPhotoError('story'),
+                      },
+                    )
+                  }}
+                />
+                {photoSaved === 'story' && (
+                  <p className="mt-2 text-xs font-semibold" style={{ color: '#8CE8AC' }}>
+                    ✓ Photo saved — it&rsquo;s now live in the About page&rsquo;s Her Story section.
+                  </p>
+                )}
+                {photoError === 'story' && (
                   <p className="mt-1 text-xs text-error">Failed to save photo. Please try again.</p>
                 )}
               </div>
@@ -618,7 +666,8 @@ export function AdminSettings() {
                   aspectRatio={3 / 4}
                   label="Upload contact photo"
                   hint="3:4 portrait · JPG or WebP · max 10 MB"
-                  onUploaded={(url) =>
+                  onUploaded={(url) => {
+                    setPhotoError(null)
                     photoMutation.mutate(
                       { contactImageUrl: url },
                       {
@@ -626,16 +675,17 @@ export function AdminSettings() {
                           setPhotoSaved('contact')
                           setTimeout(() => setPhotoSaved(null), 4000)
                         },
+                        onError: () => setPhotoError('contact'),
                       },
                     )
-                  }
+                  }}
                 />
                 {photoSaved === 'contact' && (
                   <p className="mt-2 text-xs font-semibold" style={{ color: '#8CE8AC' }}>
                     ✓ Photo saved — it&rsquo;s now live on the Contact page.
                   </p>
                 )}
-                {photoMutation.isError && (
+                {photoError === 'contact' && (
                   <p className="mt-1 text-xs text-error">Failed to save photo. Please try again.</p>
                 )}
               </div>

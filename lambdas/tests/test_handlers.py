@@ -470,6 +470,43 @@ def test_business_settings_returns_safe_defaults_when_unseeded(monkeypatch, lamb
     assert body["address"]["city"] == "Dallas"
 
 
+class TestStoryImageSetting:
+    """About page 'Her Story' photo — admin-editable via storyImageUrl.
+
+    The public handler allowlists response fields, so a model-only addition
+    silently never reaches the site; both halves are covered here."""
+
+    def test_patch_accepts_https_story_image(self):
+        from business_settings.models import BusinessSettingsPatch
+
+        patch = BusinessSettingsPatch.model_validate(
+            {"storyImageUrl": "https://assets.braidsbydeb.com/story.jpg"}
+        )
+        assert patch.storyImageUrl == "https://assets.braidsbydeb.com/story.jpg"
+
+    def test_patch_rejects_non_https_story_image(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from business_settings.models import BusinessSettingsPatch
+
+        with pytest.raises(ValidationError, match="HTTPS"):
+            BusinessSettingsPatch.model_validate({"storyImageUrl": "http://insecure.example.com/x.jpg"})
+
+    def test_public_endpoint_serves_story_image(self, monkeypatch, lambda_context):
+        from business_settings import handler
+
+        stored = dict(handler.DEFAULT_SETTINGS)
+        stored["storyImageUrl"] = "https://assets.braidsbydeb.com/story.jpg"
+        monkeypatch.setattr(handler, "get_item", lambda *args, **kwargs: stored)
+
+        response = handler.lambda_handler({"rawPath": "/business-settings"}, lambda_context)
+        body = json.loads(response["body"])
+
+        assert response["statusCode"] == 200
+        assert body["storyImageUrl"] == "https://assets.braidsbydeb.com/story.jpg"
+
+
 class TestReviewAggregateDecimal:
     """Regression: DynamoDB rejects Python floats — recalculate_review_aggregate
     crashed every admin review create/approve/delete with a 500 (found in the

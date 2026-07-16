@@ -1,6 +1,7 @@
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { useState } from 'react'
 
+import { safeSessionStorage } from '../../lib/safeStorage'
 import { DEPOSIT_AMOUNT_CENTS, dollars } from './bookingConfig'
 
 // Real Stripe deposit payment — identical behavior to the previous booking
@@ -42,7 +43,7 @@ export function StripePaymentForm({
     setPaying(true)
     setStripeError(null)
     // Persist appointmentId so the /booking/success redirect page can call confirm
-    sessionStorage.setItem('ghb_pending_appt', appointmentId)
+    safeSessionStorage.setItem('ghb_pending_appt', appointmentId)
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
