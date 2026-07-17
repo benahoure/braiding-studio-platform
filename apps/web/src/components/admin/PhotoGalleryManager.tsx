@@ -36,7 +36,8 @@ export function PhotoGalleryManager({
 
   return (
     <>
-      <div className="mb-3 grid grid-cols-4 gap-2">
+      {ordered.length > 0 && (
+        <div className="mb-3 grid grid-cols-4 gap-2">
         {ordered.map((url, position) => {
           const isCover = position === 0
           const shownPublicly = position < MAX_GALLERY_PHOTOS
@@ -79,14 +80,18 @@ export function PhotoGalleryManager({
             </div>
           )
         })}
-      </div>
+        </div>
+      )}
 
       {ordered.length < MAX_GALLERY_PHOTOS ? (
         <ImageUploader
           folder={uploadFolder}
           onUploaded={onAdd}
-          label={busy ? 'Saving…' : `Add photo — will show ${ORDINALS[ordered.length]}`}
-          hint="Saved instantly · 4:5 portrait · max 10 MB"
+          multiple
+          maxFiles={MAX_GALLERY_PHOTOS - ordered.length}
+          resetAfterUpload
+          label={busy ? 'Saving…' : ordered.length === 0 ? 'Upload photos' : `Add photo — will show ${ORDINALS[ordered.length]}`}
+          hint={`Pick up to ${MAX_GALLERY_PHOTOS - ordered.length} at once · 4:5 portrait · max 10 MB each`}
         />
       ) : (
         <p className="text-[0.7rem] text-mocha/40">

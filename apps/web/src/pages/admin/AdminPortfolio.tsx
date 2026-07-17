@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { ImageUploader } from '../../components/admin/ImageUploader'
 import { PhotoGalleryManager } from '../../components/admin/PhotoGalleryManager'
 import { PageMeta } from '../../components/seo/PageMeta'
 import { ApiRequestError, api } from '../../lib/api'
@@ -498,26 +497,19 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
                 ({photos.length} of 4 · first is the cover)
               </span>
             </label>
-            {photos.length === 0 ? (
-              <ImageUploader
-                key={destination}
-                folder={destination === 'portfolio' ? 'portfolio' : 'services'}
-                onUploaded={(url) => setPhotos([url])}
-                label="Upload photo"
-                hint="4:5 portrait crop · JPG, PNG, WebP · max 10 MB"
-              />
-            ) : (
-              <PhotoGalleryManager
-                coverUrl={photos[0]}
-                gallery={photos}
-                busy={isSubmitting}
-                error={null}
-                uploadFolder={destination === 'portfolio' ? 'portfolio' : 'services'}
-                onAdd={(url) => setPhotos((p) => (p.includes(url) ? p : [...p, url]))}
-                onRemove={(url) => setPhotos((p) => p.filter((u) => u !== url))}
-                onMakeCover={(url) => setPhotos((p) => [url, ...p.filter((u) => u !== url)])}
-              />
-            )}
+            {/* Always the manager — swapping components mid-multi-upload would
+                unmount the uploader and drop the remaining queued photos. */}
+            <PhotoGalleryManager
+              key={destination}
+              coverUrl={photos[0] ?? ''}
+              gallery={photos}
+              busy={isSubmitting}
+              error={null}
+              uploadFolder={destination === 'portfolio' ? 'portfolio' : 'services'}
+              onAdd={(url) => setPhotos((p) => (p.includes(url) ? p : [...p, url]))}
+              onRemove={(url) => setPhotos((p) => p.filter((u) => u !== url))}
+              onMakeCover={(url) => setPhotos((p) => [url, ...p.filter((u) => u !== url)])}
+            />
           </div>
 
           {/* Title */}

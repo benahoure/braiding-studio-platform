@@ -619,6 +619,7 @@ export function AdminSettings() {
                 />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={4 / 5}
                   label="Upload founder photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
@@ -661,6 +662,7 @@ export function AdminSettings() {
                 />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={4 / 5}
                   label="Upload Her Story photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
@@ -702,6 +704,7 @@ export function AdminSettings() {
                 />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={3 / 4}
                   label="Upload contact photo"
                   hint="3:4 portrait · JPG or WebP · max 10 MB"
