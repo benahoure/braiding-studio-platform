@@ -341,16 +341,17 @@ function PhotoManagerDrawer({
 }
 
 function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [imageUrl, setImageUrl] = useState('')
+  // Up to 4 pictures added BEFORE saving — first one is the cover.
+  const [photos, setPhotos] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [destination, setDestination] = useState<Destination>('portfolio')
   const [portfolioCategory, setPortfolioCategory] = useState('knotless')
   const [customPortfolioCategory, setCustomPortfolioCategory] = useState('')
   const [featured, setFeatured] = useState(false)
 
-  // Reset uploaded URL when destination changes — avoids CDN folder mismatch
+  // Reset uploaded photos when destination changes — avoids CDN folder mismatch
   useEffect(() => {
-    setImageUrl('')
+    setPhotos([])
   }, [destination])
 
   // "add to existing service" fields
@@ -382,7 +383,8 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!imageUrl) { setError('Please upload a photo first.'); return }
+    if (photos.length === 0) { setError('Please upload at least one photo.'); return }
+    const coverUrl = photos[0]
     if (!title.trim()) { setError('Please enter a title for this photo.'); return }
     const resolvedCategory = (
       portfolioCategory === '__custom__' ? customPortfolioCategory.trim() : portfolioCategory
@@ -397,19 +399,25 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
         await api.createPortfolioItem({
           title: title.trim(),
           category: resolvedCategory,
-          imageUrl,
-          thumbnailUrl: imageUrl,
+          imageUrl: coverUrl,
+          thumbnailUrl: coverUrl,
+          images: photos,
           featured,
           active: true,
         })
       } else if (destination === 'add-to-service') {
         if (!selectedServiceId) { setError('Please select a service.'); setIsSubmitting(false); return }
-        await api.updateService(selectedServiceId, { addImage: imageUrl } as Parameters<typeof api.updateService>[1])
+        // Sequential on purpose: the backend enforces the 4-photo cap per
+        // service and its error message names the exact problem.
+        for (const url of photos) {
+          await api.updateService(selectedServiceId, { addImage: url })
+        }
         await api.createPortfolioItem({
           title: title.trim(),
           category: resolvedCategory,
-          imageUrl,
-          thumbnailUrl: imageUrl,
+          imageUrl: coverUrl,
+          thumbnailUrl: coverUrl,
+          images: photos,
           featured,
           active: true,
         })
@@ -425,22 +433,24 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
           description: serviceDescription,
           startingPrice,
           durationMinutes,
-          imageUrl,
+          imageUrl: coverUrl,
+          images: photos,
           featured,
           active: true,
         })
         await api.createPortfolioItem({
           title: title.trim(),
           category: resolvedCategory,
-          imageUrl,
-          thumbnailUrl: imageUrl,
+          imageUrl: coverUrl,
+          thumbnailUrl: coverUrl,
+          images: photos,
           featured: false,
           active: true,
         })
       }
       onCreated()
-    } catch {
-      setError('Failed to save. Please try again.')
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Failed to save. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -480,18 +490,34 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-5 px-6 py-6">
-          {/* Image upload */}
+          {/* Photos — up to 4, added before saving; first one is the cover */}
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-mocha/60">
-              Photo <span className="text-error">*</span>
+              Photos <span className="text-error">*</span>{' '}
+              <span className="font-normal normal-case tracking-normal text-mocha/40">
+                ({photos.length} of 4 · first is the cover)
+              </span>
             </label>
-            <ImageUploader
-              key={destination}
-              folder={destination === 'portfolio' ? 'portfolio' : 'services'}
-              onUploaded={setImageUrl}
-              label="Upload photo"
-              hint="4:5 portrait crop · JPG, PNG, WebP · max 10 MB"
-            />
+            {photos.length === 0 ? (
+              <ImageUploader
+                key={destination}
+                folder={destination === 'portfolio' ? 'portfolio' : 'services'}
+                onUploaded={(url) => setPhotos([url])}
+                label="Upload photo"
+                hint="4:5 portrait crop · JPG, PNG, WebP · max 10 MB"
+              />
+            ) : (
+              <PhotoGalleryManager
+                coverUrl={photos[0]}
+                gallery={photos}
+                busy={isSubmitting}
+                error={null}
+                uploadFolder={destination === 'portfolio' ? 'portfolio' : 'services'}
+                onAdd={(url) => setPhotos((p) => (p.includes(url) ? p : [...p, url]))}
+                onRemove={(url) => setPhotos((p) => p.filter((u) => u !== url))}
+                onMakeCover={(url) => setPhotos((p) => [url, ...p.filter((u) => u !== url)])}
+              />
+            )}
           </div>
 
           {/* Title */}
@@ -700,7 +726,7 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !imageUrl}
+              disabled={isSubmitting || photos.length === 0}
               className="flex-1 rounded-xl py-3 text-sm font-semibold text-cream transition-all disabled:opacity-40"
               style={{ background: 'linear-gradient(135deg, #1F0A15, #432735)' }}
             >

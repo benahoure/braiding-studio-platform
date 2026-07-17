@@ -728,12 +728,26 @@ def admin_override(event: dict, admin_user_id: str) -> dict:
     return ok(_decrypt_appointment(updated))
 
 
+def _normalized_gallery(cover: str, images: list[str] | None) -> list[str] | None:
+    """Cover-first, deduped photo list — or None when over the cap."""
+    gallery = [cover]
+    for url in images or []:
+        if url not in gallery:
+            gallery.append(url)
+    return gallery if len(gallery) <= MAX_SERVICE_PHOTOS else None
+
+
 def create_service(event: dict, admin_user_id: str) -> dict:
     body = ServiceWrite.model_validate(parse_json_body(event))
     validate_cdn_url(body.imageUrl, "services")
+    gallery = _normalized_gallery(body.imageUrl, body.images)
+    if gallery is None:
+        return bad_request(f"A service can have at most {MAX_SERVICE_PHOTOS} photos.")
+    for url in gallery[1:]:
+        validate_cdn_url(url, "services")
     now = utc_now()
     service_id = new_id()
-    item = body.model_dump()
+    item = body.model_dump(exclude={"images"})
     # "From $X" is always the cheapest length when length pricing is set.
     if body.lengths:
         item["startingPrice"] = min(length.price for length in body.lengths)
@@ -742,7 +756,7 @@ def create_service(event: dict, admin_user_id: str) -> dict:
             "serviceId": service_id,
             "priceUnit": "cents",
             "activeKey": str(body.active).lower(),
-            "images": [body.imageUrl],
+            "images": gallery,
             "displayOrder": 999,
             "createdAt": now,
             "updatedAt": now,
@@ -841,14 +855,19 @@ def create_portfolio(event: dict, admin_user_id: str) -> dict:
     body = PortfolioWrite.model_validate(parse_json_body(event))
     validate_cdn_url_any(body.imageUrl)
     validate_cdn_url_any(body.thumbnailUrl)
+    gallery = _normalized_gallery(body.imageUrl, body.images)
+    if gallery is None:
+        return bad_request(f"A gallery photo can have at most {MAX_SERVICE_PHOTOS} pictures.")
+    for url in gallery[1:]:
+        validate_cdn_url_any(url)
     now = utc_now()
     style_id = new_id()
-    item = body.model_dump()
+    item = body.model_dump(exclude={"images"})
     item.update(
         {
             "styleId": style_id,
             "activeKey": str(body.active).lower(),
-            "images": [body.imageUrl],
+            "images": gallery,
             "createdAt": now,
             "updatedAt": now,
         }

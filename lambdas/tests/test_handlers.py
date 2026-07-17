@@ -545,6 +545,77 @@ class TestServiceGallery:
         assert response["statusCode"] == 200
 
 
+class TestCreateWithGallery:
+    """Admins add all photos in one flow at CREATE time — no more
+    save-first-then-edit round-trip."""
+
+    COVER = "https://assets.braidsbydeb.com/services/cover.jpg"
+    B = "https://assets.braidsbydeb.com/services/b.jpg"
+    C = "https://assets.braidsbydeb.com/services/c.jpg"
+
+    def _create_service(self, monkeypatch, body: dict):
+        from admin import handler
+
+        stored: dict = {}
+        monkeypatch.setattr(handler, "validate_cdn_url", lambda value, prefix: value)
+        monkeypatch.setattr(handler, "audit", lambda *a, **kw: None)
+        monkeypatch.setattr(handler, "put_item", lambda table, item: stored.update(item))
+        response = handler.create_service({"body": json.dumps(body)}, "admin-1")
+        return response, stored
+
+    def _service_body(self, images: list[str] | None) -> dict:
+        body = {
+            "name": "Small Knotless Braids",
+            "category": "braids-protective-styles",
+            "description": "Beautiful small knotless braids",
+            "startingPrice": 20000,
+            "durationMinutes": 360,
+            "imageUrl": self.COVER,
+        }
+        if images is not None:
+            body["images"] = images
+        return body
+
+    def test_service_created_with_full_gallery(self, monkeypatch):
+        response, stored = self._create_service(monkeypatch, self._service_body([self.B, self.C]))
+        assert response["statusCode"] == 201
+        assert stored["images"] == [self.COVER, self.B, self.C]
+
+    def test_service_gallery_dedupes_cover(self, monkeypatch):
+        response, stored = self._create_service(monkeypatch, self._service_body([self.COVER, self.B]))
+        assert response["statusCode"] == 201
+        assert stored["images"] == [self.COVER, self.B]
+
+    def test_service_gallery_over_cap_rejected(self, monkeypatch):
+        extras = [f"https://assets.braidsbydeb.com/services/{n}.jpg" for n in "wxyz"]
+        response, stored = self._create_service(monkeypatch, self._service_body(extras))
+        assert response["statusCode"] == 400
+        assert not stored
+
+    def test_service_without_images_keeps_cover_only(self, monkeypatch):
+        response, stored = self._create_service(monkeypatch, self._service_body(None))
+        assert response["statusCode"] == 201
+        assert stored["images"] == [self.COVER]
+
+    def test_portfolio_created_with_full_gallery(self, monkeypatch):
+        from admin import handler
+
+        stored: dict = {}
+        monkeypatch.setattr(handler, "validate_cdn_url_any", lambda value: value)
+        monkeypatch.setattr(handler, "audit", lambda *a, **kw: None)
+        monkeypatch.setattr(handler, "put_item", lambda table, item: stored.update(item))
+        body = {
+            "title": "Boho Look",
+            "category": "boho",
+            "imageUrl": self.COVER,
+            "thumbnailUrl": self.COVER,
+            "images": [self.B, self.C],
+        }
+        response = handler.create_portfolio({"body": json.dumps(body)}, "admin-1")
+        assert response["statusCode"] == 201
+        assert stored["images"] == [self.COVER, self.B, self.C]
+
+
 class TestPortfolioGallery:
     """Portfolio items share the service gallery rules: capped at 4,
     deduped, and the cover picture can never be removed."""

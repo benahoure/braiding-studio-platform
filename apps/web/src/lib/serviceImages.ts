@@ -46,7 +46,7 @@ export const MAX_GALLERY_PHOTOS = 4
  */
 export function resolveAllPhotos(cover: string, images?: string[]): string[] {
   const gallery = (images ?? []).filter((url) => url && url !== cover)
-  return [cover, ...Array.from(new Set(gallery))]
+  return [...(cover ? [cover] : []), ...Array.from(new Set(gallery))]
 }
 
 /**

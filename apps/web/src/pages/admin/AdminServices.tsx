@@ -353,12 +353,33 @@ function ServiceDrawer({
     }
   }
 
-  const addGalleryPhoto = (url: string) =>
-    runGalleryOp(() => api.updateService(service!.serviceId, { addImage: url }))
-  const removeGalleryPhoto = (url: string) =>
-    runGalleryOp(() => api.updateService(service!.serviceId, { removeImage: url }))
-  const makeCover = (url: string) =>
-    runGalleryOp(() => api.updateService(service!.serviceId, { imageUrl: url }))
+  // In create mode the service doesn't exist yet, so gallery edits are pure
+  // local state and the whole photo set ships with the create call.
+  const addGalleryPhoto = (url: string) => {
+    if (!service) {
+      setGallery((g) => (g.includes(url) ? g : [...g, url]))
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { addImage: url }))
+  }
+  const removeGalleryPhoto = (url: string) => {
+    if (!service) {
+      setGallery((g) => g.filter((u) => u !== url))
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { removeImage: url }))
+  }
+  const makeCover = (url: string) => {
+    if (!service) {
+      setGallery((g) => {
+        const others = g.filter((u) => u !== url)
+        return imageUrl && !others.includes(imageUrl) ? [imageUrl, ...others] : others
+      })
+      setImageUrl(url)
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { imageUrl: url }))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -397,7 +418,8 @@ function ServiceDrawer({
         await api.createService({
           name, category, subcategory: subcategoryValue ?? undefined, size: sizeValue ?? undefined,
           description, startingPrice, durationMinutes,
-          imageUrl, imagePosition: imagePositionValue ?? undefined, featured, active,
+          imageUrl, images: resolveAllPhotos(imageUrl, gallery),
+          imagePosition: imagePositionValue ?? undefined, featured, active,
           lengths: lengthsValue ?? undefined,
         })
       }
@@ -491,7 +513,7 @@ function ServiceDrawer({
             <p className="text-xs font-semibold uppercase tracking-wide text-mocha/60">
               More Photos{' '}
               <span className="font-normal normal-case text-mocha/40">
-                ({isEdit ? `${orderedPhotos.length} of 4` : 'optional'})
+                ({imageUrl ? `${orderedPhotos.length} of 4` : 'optional'})
               </span>
             </p>
             <p className="mb-3 mt-1 text-[0.68rem] leading-relaxed text-mocha/50">
@@ -501,9 +523,9 @@ function ServiceDrawer({
               “Make cover” to change which photo clients see first.
             </p>
 
-            {!isEdit ? (
+            {!imageUrl ? (
               <p className="text-[0.7rem] italic text-mocha/40">
-                Save the service first — then you can add up to 3 more photos here.
+                Upload the cover photo above first — then add up to 3 more angles right here.
               </p>
             ) : (
               <PhotoGalleryManager

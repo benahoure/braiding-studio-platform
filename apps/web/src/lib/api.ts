@@ -476,7 +476,7 @@ export const api = {
     }
   },
 
-  createService: (body: Omit<SalonService, 'serviceId' | 'bookingCount' | 'priceUnit' | 'images'>) =>
+  createService: (body: Omit<SalonService, 'serviceId' | 'bookingCount' | 'priceUnit'>) =>
     request<SalonService>('/admin/services', {
       method: 'POST',
       body: JSON.stringify(body),
