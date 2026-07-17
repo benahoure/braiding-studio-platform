@@ -38,7 +38,7 @@ from common.ses_client import best_effort_send_email, notify_admin
 from common.stripe_client import create_refund
 from portfolio.models import PortfolioPatch, PortfolioWrite
 from reviews.models import ReviewPatch, ReviewWrite
-from services.models import ServicePatch, ServiceWrite
+from services.models import MAX_SERVICE_PHOTOS, ServicePatch, ServiceWrite
 
 _cloudfront = boto3.client("cloudfront")
 
@@ -728,12 +728,26 @@ def admin_override(event: dict, admin_user_id: str) -> dict:
     return ok(_decrypt_appointment(updated))
 
 
+def _normalized_gallery(cover: str, images: list[str] | None) -> list[str] | None:
+    """Cover-first, deduped photo list — or None when over the cap."""
+    gallery = [cover]
+    for url in images or []:
+        if url not in gallery:
+            gallery.append(url)
+    return gallery if len(gallery) <= MAX_SERVICE_PHOTOS else None
+
+
 def create_service(event: dict, admin_user_id: str) -> dict:
     body = ServiceWrite.model_validate(parse_json_body(event))
     validate_cdn_url(body.imageUrl, "services")
+    gallery = _normalized_gallery(body.imageUrl, body.images)
+    if gallery is None:
+        return bad_request(f"A service can have at most {MAX_SERVICE_PHOTOS} photos.")
+    for url in gallery[1:]:
+        validate_cdn_url(url, "services")
     now = utc_now()
     service_id = new_id()
-    item = body.model_dump()
+    item = body.model_dump(exclude={"images"})
     # "From $X" is always the cheapest length when length pricing is set.
     if body.lengths:
         item["startingPrice"] = min(length.price for length in body.lengths)
@@ -742,7 +756,7 @@ def create_service(event: dict, admin_user_id: str) -> dict:
             "serviceId": service_id,
             "priceUnit": "cents",
             "activeKey": str(body.active).lower(),
-            "images": [body.imageUrl],
+            "images": gallery,
             "displayOrder": 999,
             "createdAt": now,
             "updatedAt": now,
@@ -756,10 +770,11 @@ def create_service(event: dict, admin_user_id: str) -> dict:
 def patch_service(event: dict, admin_user_id: str) -> dict:
     body = ServicePatch.model_validate(parse_json_body(event))
     add_image = body.addImage
-    all_fields = body.model_dump(exclude_unset=True, exclude={"addImage"})
+    remove_image = body.removeImage
+    all_fields = body.model_dump(exclude_unset=True, exclude={"addImage", "removeImage"})
     set_fields = {k: v for k, v in all_fields.items() if v is not None}
     remove_fields = [k for k, v in all_fields.items() if v is None]
-    if not set_fields and not remove_fields and not add_image:
+    if not set_fields and not remove_fields and not add_image and not remove_image:
         return bad_request("No service fields provided.")
     service_id = resource_id(event, "serviceId")
     if set_fields.get("imageUrl"):
@@ -783,10 +798,32 @@ def patch_service(event: dict, admin_user_id: str) -> dict:
                 return not_found("Service not found.")
             updated = existing
         if add_image:
+            gallery = updated.get("images") or []
+            if len(gallery) >= MAX_SERVICE_PHOTOS:
+                return bad_request(
+                    f"This service already has {MAX_SERVICE_PHOTOS} photos — remove one before adding another."
+                )
+            if add_image in gallery:
+                return bad_request("That photo is already in this service's gallery.")
             updated = append_list_item(get_config().table_services, {"serviceId": service_id}, "images", add_image)
+        if remove_image:
+            # The cover must stay a member of the gallery: make another photo
+            # the cover first, then remove this one.
+            if remove_image == updated.get("imageUrl"):
+                return bad_request("That photo is the cover — choose another cover photo first.")
+            gallery = [url for url in (updated.get("images") or []) if url != remove_image]
+            updated = update_item(
+                get_config().table_services,
+                {"serviceId": service_id},
+                {"images": gallery, "updatedAt": utc_now()},
+            )
     except NotFoundError:
         return not_found("Service not found.")
-    changed_fields = sorted(list(all_fields.keys()) + (["addImage"] if add_image else []))
+    changed_fields = sorted(
+        list(all_fields.keys())
+        + (["addImage"] if add_image else [])
+        + (["removeImage"] if remove_image else [])
+    )
     audit(admin_user_id, "service.updated", "service", service_id, {"fields": changed_fields})
     return ok(updated)
 
@@ -818,13 +855,19 @@ def create_portfolio(event: dict, admin_user_id: str) -> dict:
     body = PortfolioWrite.model_validate(parse_json_body(event))
     validate_cdn_url_any(body.imageUrl)
     validate_cdn_url_any(body.thumbnailUrl)
+    gallery = _normalized_gallery(body.imageUrl, body.images)
+    if gallery is None:
+        return bad_request(f"A gallery photo can have at most {MAX_SERVICE_PHOTOS} pictures.")
+    for url in gallery[1:]:
+        validate_cdn_url_any(url)
     now = utc_now()
     style_id = new_id()
-    item = body.model_dump()
+    item = body.model_dump(exclude={"images"})
     item.update(
         {
             "styleId": style_id,
             "activeKey": str(body.active).lower(),
+            "images": gallery,
             "createdAt": now,
             "updatedAt": now,
         }
@@ -836,22 +879,54 @@ def create_portfolio(event: dict, admin_user_id: str) -> dict:
 
 def patch_portfolio(event: dict, admin_user_id: str) -> dict:
     body = PortfolioPatch.model_validate(parse_json_body(event))
-    updates = body.model_dump(exclude_none=True)
-    if not updates:
+    add_image = body.addImage
+    remove_image = body.removeImage
+    updates = body.model_dump(exclude_none=True, exclude={"addImage", "removeImage"})
+    if not updates and not add_image and not remove_image:
         return bad_request("No portfolio fields provided.")
     if updates.get("imageUrl"):
         validate_cdn_url_any(updates["imageUrl"])
     if updates.get("thumbnailUrl"):
         validate_cdn_url_any(updates["thumbnailUrl"])
+    if add_image:
+        validate_cdn_url_any(add_image)
     if "active" in updates:
         updates["activeKey"] = str(updates["active"]).lower()
     style_id = resource_id(event, "styleId")
-    updates["updatedAt"] = utc_now()
     try:
-        updated = update_item(get_config().table_portfolio, {"styleId": style_id}, updates)
+        if updates:
+            updates["updatedAt"] = utc_now()
+            updated = update_item(get_config().table_portfolio, {"styleId": style_id}, updates)
+        else:
+            existing = get_item(get_config().table_portfolio, {"styleId": style_id})
+            if not existing:
+                return not_found("Portfolio item not found.")
+            updated = existing
+        # Same gallery rules as services: capped, deduped, cover always kept.
+        if add_image:
+            gallery = updated.get("images") or []
+            if len(gallery) >= MAX_SERVICE_PHOTOS:
+                return bad_request(
+                    f"This photo already has {MAX_SERVICE_PHOTOS} pictures — remove one before adding another."
+                )
+            if add_image in gallery:
+                return bad_request("That picture is already in this photo's gallery.")
+            updated = append_list_item(get_config().table_portfolio, {"styleId": style_id}, "images", add_image)
+        if remove_image:
+            if remove_image == updated.get("imageUrl"):
+                return bad_request("That picture is the cover — choose another cover first.")
+            gallery = [url for url in (updated.get("images") or []) if url != remove_image]
+            updated = update_item(
+                get_config().table_portfolio,
+                {"styleId": style_id},
+                {"images": gallery, "updatedAt": utc_now()},
+            )
     except NotFoundError:
         return not_found("Portfolio item not found.")
-    audit(admin_user_id, "portfolio.updated", "portfolio", style_id, {"fields": sorted(updates)})
+    changed = sorted(
+        list(updates) + (["addImage"] if add_image else []) + (["removeImage"] if remove_image else [])
+    )
+    audit(admin_user_id, "portfolio.updated", "portfolio", style_id, {"fields": changed})
     return ok(updated)
 
 

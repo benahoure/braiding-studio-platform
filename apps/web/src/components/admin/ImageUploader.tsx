@@ -15,6 +15,13 @@ interface ImageUploaderProps {
   label?: string
   hint?: string
   aspectRatio?: number
+  /** Allow selecting several photos at once; each goes through the crop step. */
+  multiple?: boolean
+  /** With `multiple`: how many more photos may be added (extra picks are dropped). */
+  maxFiles?: number
+  /** Return to the empty prompt after each upload — for add-another galleries,
+      where keeping the last photo on screen hides the next upload button. */
+  resetAfterUpload?: boolean
 }
 
 async function getCroppedBlob(image: HTMLImageElement, pixelCrop: PixelCrop, mimeType: string): Promise<Blob> {
@@ -51,12 +58,20 @@ export function ImageUploader({
   label = 'Click to upload image',
   hint,
   aspectRatio = 4 / 5,
+  multiple = false,
+  maxFiles,
+  resetAfterUpload = false,
 }: ImageUploaderProps) {
   const CROP_ASPECT = aspectRatio
   const [preview, setPreview] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Multi-select queue: remaining files wait here while one is in the crop
+  // modal; each confirmed crop uploads, then the next file opens.
+  const queueRef = useRef<File[]>([])
+  const [queueMeta, setQueueMeta] = useState({ index: 0, total: 0 })
 
   // crop state
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -116,9 +131,22 @@ export function ImageUploader({
       const { uploadUrl, publicUrl } = await api.getUploadUrl(folder, cropFilename, croppedFile.type)
       await api.uploadToPresignedUrl(uploadUrl, croppedFile)
       onUploaded(publicUrl)
+      if (resetAfterUpload) {
+        URL.revokeObjectURL(objectUrl)
+        setPreview(null)
+      }
+      const next = queueRef.current.shift()
+      if (next) {
+        setQueueMeta((m) => ({ ...m, index: m.index + 1 }))
+        openCrop(next)
+      } else {
+        setQueueMeta({ index: 0, total: 0 })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
       setPreview(null)
+      queueRef.current = []
+      setQueueMeta({ index: 0, total: 0 })
     } finally {
       setIsUploading(false)
     }
@@ -127,13 +155,32 @@ export function ImageUploader({
   function cancelCrop() {
     if (cropSrc) URL.revokeObjectURL(cropSrc)
     setCropSrc(null)
+    queueRef.current = []
+    setQueueMeta({ index: 0, total: 0 })
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function handleFiles(list: FileList | null) {
+    if (!list || list.length === 0) return
+    let files = Array.from(list)
+    if (!multiple) files = files.slice(0, 1)
+    if (multiple && maxFiles !== undefined && files.length > maxFiles) {
+      files = files.slice(0, Math.max(maxFiles, 0))
+      setError(
+        maxFiles > 0
+          ? `Photo limit — only the first ${maxFiles} ${maxFiles === 1 ? 'photo' : 'photos'} will be added.`
+          : 'Photo limit reached — remove one first.',
+      )
+      if (files.length === 0) return
+    }
+    queueRef.current = files.slice(1)
+    setQueueMeta({ index: 1, total: files.length })
+    openCrop(files[0])
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
-    const file = e.dataTransfer.files[0]
-    if (file) openCrop(file)
+    handleFiles(e.dataTransfer.files)
   }
 
   return (
@@ -142,11 +189,9 @@ export function ImageUploader({
         ref={inputRef}
         type="file"
         accept={ALLOWED_TYPES.join(',')}
+        multiple={multiple}
         className="sr-only"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) openCrop(file)
-        }}
+        onChange={(e) => handleFiles(e.target.files)}
       />
 
       {/* Upload area */}
@@ -213,6 +258,7 @@ export function ImageUploader({
                   Crop Photo
                 </p>
                 <p className="mt-0.5 text-sm font-semibold text-white/90">
+                  {queueMeta.total > 1 ? `Photo ${queueMeta.index} of ${queueMeta.total} — ` : ''}
                   Adjust the frame — this is exactly how it will appear on the site
                 </p>
               </div>

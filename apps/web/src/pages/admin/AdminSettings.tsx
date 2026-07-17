@@ -40,6 +40,49 @@ function Field({
   )
 }
 
+// Always show what the public site is actually displaying in this spot —
+// an empty admin card next to a live default photo reads as "hardcoded".
+function PhotoPreview({
+  url,
+  fallback,
+  aspect,
+  alt,
+}: {
+  url?: string | null
+  fallback?: string
+  aspect: string
+  alt: string
+}) {
+  const effective = url || fallback
+  if (!effective) {
+    return (
+      <p className="mb-3 text-[0.68rem] italic text-mocha/40">
+        No photo uploaded — the site hides this spot until you add one.
+      </p>
+    )
+  }
+  return (
+    <div className="mb-3 w-full max-w-[160px]">
+      <div className="relative">
+        <img src={effective} alt={alt} className={`${aspect} w-full rounded-xl object-cover shadow`} />
+        {!url && (
+          <span
+            className="absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[0.55rem] font-bold uppercase"
+            style={{ background: 'rgba(17,17,17,0.72)', color: 'rgba(255,240,247,0.9)' }}
+          >
+            Built-in default
+          </span>
+        )}
+      </div>
+      {!url && (
+        <p className="mt-1 text-[0.62rem] leading-snug text-mocha/40">
+          What visitors currently see — upload to replace it.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function AdminSettings() {
   const queryClient = useQueryClient()
 
@@ -568,15 +611,15 @@ export function AdminSettings() {
                     About page top + Home page · 4:5 portrait
                   </span>
                 </p>
-                {settings.founderImageUrl && (
-                  <img
-                    src={settings.founderImageUrl}
-                    alt="Current founder photo"
-                    className="mb-3 aspect-[4/5] w-full max-w-[160px] rounded-xl object-cover shadow"
-                  />
-                )}
+                <PhotoPreview
+                  url={settings.founderImageUrl}
+                  fallback="/images/deb-1.jpg"
+                  aspect="aspect-[4/5]"
+                  alt="Current founder photo"
+                />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={4 / 5}
                   label="Upload founder photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
@@ -611,15 +654,15 @@ export function AdminSettings() {
                     About page, lower photo · 4:5 portrait
                   </span>
                 </p>
-                {settings.storyImageUrl && (
-                  <img
-                    src={settings.storyImageUrl}
-                    alt="Current Her Story photo"
-                    className="mb-3 aspect-[4/5] w-full max-w-[160px] rounded-xl object-cover shadow"
-                  />
-                )}
+                <PhotoPreview
+                  url={settings.storyImageUrl}
+                  fallback="/images/deb-2.jpg"
+                  aspect="aspect-[4/5]"
+                  alt="Current Her Story photo"
+                />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={4 / 5}
                   label="Upload Her Story photo"
                   hint="4:5 portrait · JPG or WebP · max 10 MB"
@@ -654,15 +697,14 @@ export function AdminSettings() {
                     Contact page · 3:4 portrait
                   </span>
                 </p>
-                {settings.contactImageUrl && (
-                  <img
-                    src={settings.contactImageUrl}
-                    alt="Current contact photo"
-                    className="mb-3 aspect-[3/4] w-full max-w-[160px] rounded-xl object-cover shadow"
-                  />
-                )}
+                <PhotoPreview
+                  url={settings.contactImageUrl}
+                  aspect="aspect-[3/4]"
+                  alt="Current contact photo"
+                />
                 <ImageUploader
                   folder="portfolio"
+                  resetAfterUpload
                   aspectRatio={3 / 4}
                   label="Upload contact photo"
                   hint="3:4 portrait · JPG or WebP · max 10 MB"

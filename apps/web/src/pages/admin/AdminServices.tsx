@@ -3,11 +3,13 @@ import { Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { ImageUploader } from '../../components/admin/ImageUploader'
+import { PhotoGalleryManager } from '../../components/admin/PhotoGalleryManager'
 import { PageMeta } from '../../components/seo/PageMeta'
 import { ImageLightbox } from '../../components/ui/ImageLightbox'
 import { api, ApiRequestError } from '../../lib/api'
 import { formatDuration, formatPrice } from '../../lib/format'
 import { SERVICE_CATEGORIES, getCategoryLabel } from '../../lib/serviceCategories'
+import { resolveAllPhotos } from '../../lib/serviceImages'
 import type { SalonService, ServiceCategory } from '../../types'
 import { AdminPageShell } from './AdminDashboard'
 
@@ -277,6 +279,7 @@ function ServiceDrawer({
   onSaved: () => void
 }) {
   const isEdit = !!service
+  const queryClient = useQueryClient()
 
   const [imageUrl, setImageUrl] = useState(service?.imageUrl ?? '')
   const [changingPhoto, setChangingPhoto] = useState(false)
@@ -303,6 +306,15 @@ function ServiceDrawer({
       : initialSub
   })
   const [imagePosition, setImagePosition] = useState(service?.imagePosition ?? '')
+  // Gallery (up to 4 photos incl. cover) — saved instantly via PATCH, not on
+  // the main Save button, so mutations return the fresh images[] list.
+  const [gallery, setGallery] = useState<string[]>(
+    service ? (service.images?.length ? service.images : [service.imageUrl]) : [],
+  )
+  const [galleryBusy, setGalleryBusy] = useState(false)
+  const [galleryError, setGalleryError] = useState<string | null>(null)
+  // All photos incl. any legacy overflow — the header count stays honest.
+  const orderedPhotos = resolveAllPhotos(imageUrl, gallery)
   const [description, setDescription] = useState(service?.description ?? '')
   const [priceStr, setPriceStr] = useState(service ? String(service.startingPrice / 100) : '')
   const [lengthRows, setLengthRows] = useState<{ label: string; priceStr: string }[]>(
@@ -322,6 +334,52 @@ function ServiceDrawer({
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
+
+  async function runGalleryOp(op: () => Promise<SalonService>) {
+    if (!service) return
+    setGalleryBusy(true)
+    setGalleryError(null)
+    try {
+      const updated = await op()
+      setGallery(updated.images?.length ? updated.images : [updated.imageUrl])
+      setImageUrl(updated.imageUrl)
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] })
+    } catch (err) {
+      setGalleryError(
+        err instanceof ApiRequestError ? err.message : 'Failed to update photos. Please try again.',
+      )
+    } finally {
+      setGalleryBusy(false)
+    }
+  }
+
+  // In create mode the service doesn't exist yet, so gallery edits are pure
+  // local state and the whole photo set ships with the create call.
+  const addGalleryPhoto = (url: string) => {
+    if (!service) {
+      setGallery((g) => (g.includes(url) ? g : [...g, url]))
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { addImage: url }))
+  }
+  const removeGalleryPhoto = (url: string) => {
+    if (!service) {
+      setGallery((g) => g.filter((u) => u !== url))
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { removeImage: url }))
+  }
+  const makeCover = (url: string) => {
+    if (!service) {
+      setGallery((g) => {
+        const others = g.filter((u) => u !== url)
+        return imageUrl && !others.includes(imageUrl) ? [imageUrl, ...others] : others
+      })
+      setImageUrl(url)
+      return
+    }
+    runGalleryOp(() => api.updateService(service.serviceId, { imageUrl: url }))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -360,7 +418,8 @@ function ServiceDrawer({
         await api.createService({
           name, category, subcategory: subcategoryValue ?? undefined, size: sizeValue ?? undefined,
           description, startingPrice, durationMinutes,
-          imageUrl, imagePosition: imagePositionValue ?? undefined, featured, active,
+          imageUrl, images: resolveAllPhotos(imageUrl, gallery),
+          imagePosition: imagePositionValue ?? undefined, featured, active,
           lengths: lengthsValue ?? undefined,
         })
       }
@@ -419,7 +478,7 @@ function ServiceDrawer({
           {/* Photo */}
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-mocha/60">
-              Service Photo <span className="text-error">*</span>
+              Cover Photo <span className="text-error">*</span>
             </label>
 
             {isEdit && imageUrl && !changingPhoto ? (
@@ -445,6 +504,39 @@ function ServiceDrawer({
                 onUploaded={(url) => { setImageUrl(url); setChangingPhoto(false) }}
                 label="Upload service photo"
                 hint="4:5 portrait crop · JPG, PNG, WebP · max 10 MB"
+              />
+            )}
+          </div>
+
+          {/* Photo gallery — up to 4 angles, shown as a slider to clients */}
+          <div className="rounded-xl border border-cream-border bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-mocha/60">
+              More Photos{' '}
+              <span className="font-normal normal-case text-mocha/40">
+                ({imageUrl ? `${orderedPhotos.length} of 4` : 'optional'})
+              </span>
+            </p>
+            <p className="mb-3 mt-1 text-[0.68rem] leading-relaxed text-mocha/50">
+              Show different angles of this style — front, back, side. Clients slide
+              through them on the website <strong>in the order shown below</strong>: the
+              cover always leads, then each photo in the order you added it. Use
+              “Make cover” to change which photo clients see first.
+            </p>
+
+            {!imageUrl ? (
+              <p className="text-[0.7rem] italic text-mocha/40">
+                Upload the cover photo above first — then add up to 3 more angles right here.
+              </p>
+            ) : (
+              <PhotoGalleryManager
+                coverUrl={imageUrl}
+                gallery={gallery}
+                busy={galleryBusy}
+                error={galleryError}
+                uploadFolder="services"
+                onAdd={addGalleryPhoto}
+                onRemove={removeGalleryPhoto}
+                onMakeCover={makeCover}
               />
             )}
           </div>

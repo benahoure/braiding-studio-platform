@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 
 import { formatDuration } from '../../lib/format'
 import { getCategoryLabel } from '../../lib/serviceCategories'
-import { resolveServiceImage, resolveServiceImageAlt } from '../../lib/serviceImages'
+import { resolveServiceImageAlt, resolveServiceSlides } from '../../lib/serviceImages'
 import { ImageLightbox } from './ImageLightbox'
+import { ServiceImageSlider } from './ServiceImageSlider'
 import type { SalonService } from '../../types'
 
 // Braids by Deb service card — the card-luxury look from the original site,
@@ -45,39 +46,32 @@ export function ServiceCard({ service }: { service: SalonService }) {
   // Track load failures so a broken URL degrades to the styled placeholder
   // instead of the browser's broken-image icon.
   const [imageFailed, setImageFailed] = useState(false)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const imageSrc = resolveServiceImage(service)
+  const [lightbox, setLightbox] = useState<{ open: boolean; index: number }>({ open: false, index: 0 })
+  const slides = resolveServiceSlides(service)
   const familyLabel = getCategoryLabel(service.subcategory ?? service.category)
 
   return (
     <div className="card-luxury flex flex-col">
-      {/* Image (resolved: imageUrl → subcategory default → global fallback) */}
+      {/* Photo gallery (resolved cover + up to 3 more angles). The slider's
+          active image owns the button semantics — a role on this wrapper
+          would nest the dot/arrow buttons inside a button. */}
       {!imageFailed ? (
         <div
           className="relative w-full overflow-hidden"
-          style={{ aspectRatio: '4/5', borderRadius: '18px 18px 0 0', cursor: 'zoom-in' }}
-          onClick={() => setLightboxOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setLightboxOpen(true)
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          aria-label={`View ${service.name} photo`}
+          style={{ aspectRatio: '4/5', borderRadius: '18px 18px 0 0' }}
         >
-          <img
-            src={imageSrc}
+          <ServiceImageSlider
+            slides={slides}
             alt={resolveServiceImageAlt(service)}
-            loading="lazy"
-            onError={() => setImageFailed(true)}
-            className="absolute inset-0 h-full w-full transition-transform duration-500 hover:scale-105"
-            style={{ objectFit: 'cover', objectPosition: service.imagePosition ?? 'top center' }}
+            objectPosition={service.imagePosition ?? 'top center'}
+            className="h-full w-full"
+            activateLabel={`View ${service.name} photo`}
+            onImageActivate={(index) => setLightbox({ open: true, index })}
+            onAllImagesFailed={() => setImageFailed(true)}
           />
           {service.featured && (
             <div
-              className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 text-[0.62rem] font-medium"
+              className="pointer-events-none absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 text-[0.62rem] font-medium"
               style={{
                 background: 'rgba(17,17,17,0.72)',
                 color: 'var(--gold-light)',
@@ -144,12 +138,13 @@ export function ServiceCard({ service }: { service: SalonService }) {
         </div>
       </div>
 
-      {lightboxOpen && (
+      {lightbox.open && (
         <ImageLightbox
-          src={imageSrc}
+          images={slides}
+          initialIndex={lightbox.index}
           alt={resolveServiceImageAlt(service)}
           title={service.name}
-          onClose={() => setLightboxOpen(false)}
+          onClose={() => setLightbox({ open: false, index: 0 })}
         />
       )}
     </div>

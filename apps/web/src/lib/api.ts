@@ -387,7 +387,7 @@ export const api = {
   getAdminServices: () =>
     request<{ services: SalonService[]; nextCursor: string | null }>('/admin/services'),
 
-  updateService: (id: string, body: Partial<Pick<SalonService, 'active' | 'featured' | 'name' | 'startingPrice' | 'durationMinutes' | 'description' | 'category' | 'imageUrl'>> & { subcategory?: ServiceSubcategory | null; size?: string | null; imagePosition?: string | null; addImage?: string; lengths?: import('../types').ServiceLengthOption[] | null }) =>
+  updateService: (id: string, body: Partial<Pick<SalonService, 'active' | 'featured' | 'name' | 'startingPrice' | 'durationMinutes' | 'description' | 'category' | 'imageUrl'>> & { subcategory?: ServiceSubcategory | null; size?: string | null; imagePosition?: string | null; addImage?: string; removeImage?: string; lengths?: import('../types').ServiceLengthOption[] | null }) =>
     request<SalonService>(`/admin/services/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
@@ -400,7 +400,7 @@ export const api = {
   getAdminPortfolio: () =>
     request<{ portfolio: PortfolioItem[]; nextCursor: string | null }>('/admin/portfolio'),
 
-  updatePortfolio: (id: string, body: Partial<Pick<PortfolioItem, 'active' | 'featured' | 'title'>>) =>
+  updatePortfolio: (id: string, body: Partial<Pick<PortfolioItem, 'active' | 'featured' | 'title' | 'imageUrl' | 'thumbnailUrl'>> & { addImage?: string; removeImage?: string }) =>
     request<PortfolioItem>(`/admin/portfolio/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
@@ -476,7 +476,7 @@ export const api = {
     }
   },
 
-  createService: (body: Omit<SalonService, 'serviceId' | 'bookingCount' | 'priceUnit' | 'images'>) =>
+  createService: (body: Omit<SalonService, 'serviceId' | 'bookingCount' | 'priceUnit'>) =>
     request<SalonService>('/admin/services', {
       method: 'POST',
       body: JSON.stringify(body),

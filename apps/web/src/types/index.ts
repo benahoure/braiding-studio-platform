@@ -115,6 +115,8 @@ export interface PortfolioItem {
   category: PortfolioCategory
   imageUrl: string
   thumbnailUrl: string
+  /** Optional gallery (up to 4 incl. cover) — users slide through them. */
+  images?: string[]
   featured: boolean
   active: boolean
   createdAt: string

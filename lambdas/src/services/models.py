@@ -15,6 +15,9 @@ ServiceCategory = Literal[
     "kids",
 ]
 
+# Gallery cap — the public slider shows up to 4 angles of a style.
+MAX_SERVICE_PHOTOS = 4
+
 
 class LengthOption(HtmlStrippingModelMixin, BaseModel):
     """One length tier of a service, e.g. 'Waist length' at $300."""
@@ -35,6 +38,9 @@ class ServiceWrite(HtmlStrippingModelMixin, BaseModel):
     durationMinutes: int = Field(gt=0, le=720)
     lengths: list[LengthOption] | None = Field(default=None, max_length=6)
     imageUrl: str
+    # Optional full gallery at create time (cover included or not — the
+    # handler normalizes to cover-first, deduped, max 4).
+    images: list[str] | None = Field(default=None, max_length=MAX_SERVICE_PHOTOS)
     imageAlt: str | None = Field(default=None, max_length=200)
     imagePosition: str | None = Field(default=None, max_length=50)
     featured: bool = False
@@ -44,6 +50,14 @@ class ServiceWrite(HtmlStrippingModelMixin, BaseModel):
     @classmethod
     def validate_image_url(cls, value: str) -> str:
         return https_url(value)
+
+    @field_validator("images")
+    @classmethod
+    def validate_images(cls, value: list[str] | None) -> list[str] | None:
+        if value:
+            for url in value:
+                https_url(url)
+        return value
 
 
 class ServicePatch(HtmlStrippingModelMixin, BaseModel):
@@ -61,6 +75,9 @@ class ServicePatch(HtmlStrippingModelMixin, BaseModel):
     featured: bool | None = None
     active: bool | None = None
     addImage: str | None = None  # appends a URL to the images[] gallery list
+    # Removes a URL from images[]. Not URL-validated on purpose — it only
+    # filters existing entries and must be able to remove a malformed legacy one.
+    removeImage: str | None = None
 
     @field_validator("imageUrl", "addImage")
     @classmethod
