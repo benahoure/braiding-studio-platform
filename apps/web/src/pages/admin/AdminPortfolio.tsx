@@ -97,7 +97,7 @@ export function AdminPortfolio() {
         )}
 
         {isError && (
-          <p className="text-sm text-error">Failed to load portfolio. Please refresh.</p>
+          <p className="text-sm text-error">Failed to load the gallery. Please refresh.</p>
         )}
 
         {mutationError && (
@@ -111,7 +111,7 @@ export function AdminPortfolio() {
 
         {!isPending && !isError && items.length === 0 && (
           <div className="rounded-xl border border-cream-border bg-paper p-10 text-center">
-            <p className="text-sm text-mocha/60">No portfolio items yet.</p>
+            <p className="text-sm text-mocha/60">No gallery photos yet.</p>
           </div>
         )}
 
@@ -474,7 +474,7 @@ function AddPhotoDrawer({ onClose, onCreated }: { onClose: () => void; onCreated
           style={{ background: 'linear-gradient(135deg, #1F0A15, #1C0D17)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}
         >
           <div>
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-gold-light/70">Portfolio</p>
+            <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-gold-light/70">Gallery</p>
             <h2 className="mt-0.5 text-lg font-semibold text-cream">Add New Photo</h2>
           </div>
           <button

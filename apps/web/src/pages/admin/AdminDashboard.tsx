@@ -14,7 +14,7 @@ const QUICK_NAV = [
   { label: 'Appointments', to: '/admin/appointments', icon: CalendarDays, accent: '#F5A8C2' },
   { label: 'Messages', to: '/admin/messages', icon: Inbox, accent: '#C87390' },
   { label: 'Services', to: '/admin/services', icon: Scissors, accent: '#F5A8C2' },
-  { label: 'Portfolio', to: '/admin/portfolio', icon: Image, accent: '#C87390' },
+  { label: 'Gallery', to: '/admin/portfolio', icon: Image, accent: '#C87390' },
   { label: 'Reviews', to: '/admin/reviews', icon: Star, accent: '#C87390' },
 ]
 
