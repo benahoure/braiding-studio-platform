@@ -64,7 +64,7 @@ export function ServiceCard({ service }: { service: SalonService }) {
             slides={slides}
             alt={resolveServiceImageAlt(service)}
             objectPosition={service.imagePosition ?? 'top center'}
-            className="absolute inset-0"
+            className="h-full w-full"
             activateLabel={`View ${service.name} photo`}
             onImageActivate={(index) => setLightbox({ open: true, index })}
             onAllImagesFailed={() => setImageFailed(true)}

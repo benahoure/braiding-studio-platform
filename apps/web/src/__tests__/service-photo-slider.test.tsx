@@ -175,6 +175,19 @@ describe('ServiceCard photo slider', () => {
     expect(screen.queryByText(/1 \/ 1/)).not.toBeInTheDocument()
     expect(container.querySelector('.slide-hint')).toBeNull()
   })
+
+  it('no element mixes absolute+relative position classes (the later Tailwind rule wins and collapses the box)', () => {
+    // Regression: ServiceCard once passed className="absolute inset-0" into the
+    // slider, whose root is `relative` — .relative is emitted later in the
+    // stylesheet, so position:relative won, inset-0 stopped sizing the root,
+    // and every photo rendered inside a 0-height box (blank Services page).
+    const { container } = renderCard(makeService([COVER, BACK]))
+    const offenders = Array.from(container.querySelectorAll('*')).filter((el) => {
+      const c = el.classList
+      return c.contains('absolute') && c.contains('relative')
+    })
+    expect(offenders).toHaveLength(0)
+  })
 })
 
 describe('Gallery page multi-photo tiles', () => {

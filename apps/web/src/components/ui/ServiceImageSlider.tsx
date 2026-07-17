@@ -15,6 +15,9 @@ interface ServiceImageSliderProps {
   slides: string[]
   alt: string
   objectPosition?: string
+  /** Sizing classes only (e.g. "h-full w-full"). Never pass position classes:
+      the root is position:relative for its children, and Tailwind's rule
+      order makes a passed `absolute` lose — collapsing the slider to 0 height. */
   className?: string
   /** Fires on tap/Enter on the photo itself (e.g. open the lightbox). */
   onImageActivate?: (index: number) => void
